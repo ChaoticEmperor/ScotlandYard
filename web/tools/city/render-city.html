@@ -1,0 +1,410 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Shadow Line city renderer</title></head>
+<body style="margin:0">
+<script>
+// Paints Shadow Line's illustrated city board: the game's taxi links are the streets, every block is
+// lined with small oblique-view houses, and the real Thames, parks and landmark positions come
+// from OpenStreetMap. All drawing here is original and procedural (generic landmark icons).
+// Driven by rasterize-city.cjs: window.renderCity(input) -> JPEG data URL.
+// Map data (c) OpenStreetMap contributors, ODbL.
+window.renderCity = function (I) {
+  "use strict";
+  var W = I.W, H = I.H, SC = I.scale, P = I.positions, osc = I.osm.scale;
+  var seed = 20261019;
+  function rnd() {
+    seed = (seed + 0x6d2b79f5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  var pick = function (a) { return a[Math.floor(rnd() * a.length)]; };
+
+  // ---------- masks at board resolution ----------
+  function mask(draw) {
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var x = c.getContext("2d"); x.fillStyle = x.strokeStyle = "#000"; draw(x);
+    var d = x.getImageData(0, 0, W, H).data, m = new Uint8Array(W * H);
+    for (var i = 0; i < m.length; i++) m[i] = d[i * 4 + 3] > 40 ? 1 : 0;
+    return m;
+  }
+  function osmPath(x, list, scale) {
+    x.beginPath();
+    list.forEach(function (f) {
+      [f.p].concat(f.h || []).forEach(function (r) {
+        x.moveTo(r[0] / scale, r[1] / scale);
+        for (var i = 2; i < r.length; i += 2) x.lineTo(r[i] / scale, r[i + 1] / scale);
+        x.closePath();
+      });
+    });
+  }
+  function roadsPath(x, extra, only) {
+    x.beginPath();
+    if (!only) I.taxi.forEach(function (e) { x.moveTo(P[e[0]][0], P[e[0]][1]); x.lineTo(P[e[1]][0], P[e[1]][1]); });
+    (only || extra || []).forEach(function (pts) { x.moveTo(pts[0][0], pts[0][1]); for (var i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]); });
+  }
+  var water = mask(function (x) { osmPath(x, I.osm.water, osc); x.fill("evenodd"); });
+  var park = mask(function (x) { osmPath(x, I.osm.green.filter(function (g) { return g.big; }), osc); x.fill("evenodd"); });
+  var road = mask(function (x) {
+    x.lineCap = "round"; x.lineWidth = 15; roadsPath(x); x.stroke();
+    x.lineWidth = 6; roadsPath(x, [], I.curves); x.stroke();
+    I.stations.forEach(function (s) { x.beginPath(); x.arc(s[0], s[1], 17, 0, 7); x.fill(); });
+  });
+  // Beyond the game's streets the city continues along real side streets (thin, unmarked).
+  var near = mask(function (x) {
+    x.lineCap = "round"; x.lineWidth = 70; roadsPath(x); x.stroke();
+    I.stations.forEach(function (s) { x.beginPath(); x.arc(s[0], s[1], 40, 0, 7); x.fill(); });
+  });
+  var minor = [];
+  I.osm.roads.forEach(function (r) {
+    if (r[0] < 2) return;
+    for (var i = 1; i + 3 < r.length; i += 2) {
+      var a = [r[i] / osc, r[i + 1] / osc], b = [r[i + 2] / osc, r[i + 3] / osc];
+      var ax = a[0] | 0, ay = a[1] | 0, bx = b[0] | 0, by = b[1] | 0;
+      if (ax < 0 || ay < 0 || bx < 0 || by < 0 || ax >= W || bx >= W || ay >= H || by >= H) continue;
+      if (near[ay * W + ax] || near[by * W + bx] || water[ay * W + ax] || water[by * W + bx]) continue;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 1) continue;
+      minor.push([a, b]);
+    }
+  });
+  var minorMask = mask(function (x) {
+    x.lineCap = "round"; x.lineWidth = 6.5; x.beginPath();
+    minor.forEach(function (s) { x.moveTo(s[0][0], s[0][1]); x.lineTo(s[1][0], s[1][1]); });
+    x.stroke();
+  });
+  var lines = mask(function (x) { x.lineCap = "round"; x.lineWidth = 9; roadsPath(x, [], I.lines || []); x.stroke(); });
+  var occ = new Uint8Array(W * H);
+  var at = function (m, x, y) { x |= 0; y |= 0; return x < 0 || y < 0 || x >= W || y >= H ? 1 : m[y * W + x]; };
+  function freeRect(c, u, n, hw, hd, allowPark) {
+    for (var a = -hw; a <= hw; a += 1.5)
+      for (var b = -hd; b <= hd; b += 1.5) {
+        var x = c[0] + u[0] * a + n[0] * b, y = c[1] + u[1] * a + n[1] * b;
+        if (at(road, x, y) || at(minorMask, x, y) || at(water, x, y) || at(occ, x, y) || (!allowPark && at(park, x, y))) return false;
+      }
+    return true;
+  }
+  function markRect(c, u, n, hw, hd) {
+    for (var a = -hw - 0.8; a <= hw + 0.8; a += 0.7)
+      for (var b = -hd - 0.8; b <= hd + 0.8; b += 0.7) {
+        var x = (c[0] + u[0] * a + n[0] * b) | 0, y = (c[1] + u[1] * a + n[1] * b) | 0;
+        if (x >= 0 && y >= 0 && x < W && y < H) occ[y * W + x] = 1;
+      }
+  }
+  function markDisc(x0, y0, r) {
+    for (var y = Math.max(0, (y0 - r) | 0); y <= Math.min(H - 1, y0 + r); y++)
+      for (var x = Math.max(0, (x0 - r) | 0); x <= Math.min(W - 1, x0 + r); x++)
+        if ((x - x0) * (x - x0) + (y - y0) * (y - y0) <= r * r) occ[y * W + x] = 1;
+  }
+
+  // ---------- landmarks reserve their plots first ----------
+  var SIZE = { dome: 17, museum: 17, castle: 16, bridge: 15, clock: 11, church: 14, palace: 18, wheel: 14, column: 9, chimney: 15,
+    shard: 11, fountain: 10, market: 15, hall: 15, mast: 10, station: 18, globe: 11, stadium: 19, arch: 11, gherkin: 10 };
+  var marks = [];
+  I.landmarks.forEach(function (l) {
+    var r = SIZE[l.icon] || 14, onWater = l.icon === "bridge";
+    for (var k = 0; k < 400; k++) {
+      var ang = k * 2.4, rad = Math.sqrt(k) * 2.6, x = l.x + Math.cos(ang) * rad, y = l.y + Math.sin(ang) * rad;
+      var ok = true;
+      for (var a = 0; a < 6.28 && ok; a += 0.5)
+        for (var rr = 0; rr <= r && ok; rr += r / 3) {
+          var px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+          if (at(road, px, py) || at(occ, px, py) || (!onWater && at(water, px, py))) ok = false;
+        }
+      if (ok) { marks.push({ l: l, x: x, y: y, r: r }); markDisc(x, y, r + 3); break; }
+    }
+  });
+
+  // ---------- buildings along every street, then inner rows ----------
+  var buildings = [], trees = [];
+  var center = [W / 2, H * 0.45], maxD = Math.hypot(W, H) / 2;
+  function addBuilding(c, u, n, w, d) {
+    var dc = Math.hypot(c[0] - center[0], c[1] - center[1]) / maxD;
+    var h = 3 + rnd() * 3.4 + (1 - dc) * 4 + (rnd() < 0.06 ? 4.5 : 0);
+    var roofKind = rnd(), b = { c: c, u: u, n: n, w: w, d: d, h: h };
+    b.roof = roofKind < 0.74 ? "hip" : roofKind < 0.88 ? "flat" : "slate";
+    b.roofCol = b.roof === "hip" ? pick(["#d4693a", "#c75c30", "#df8045", "#bb532b", "#e2914f", "#cf6d3e"]) : b.roof === "slate" ? pick(["#7c8798", "#8a93a3", "#6f7a8c"]) : pick(["#cdbf9f", "#c3b391", "#d6cab0"]);
+    b.wall = pick(["#f2e4c9", "#ead6b2", "#f5ecd9", "#ddc7a3", "#f0dcc0", "#c98a62"]);
+    buildings.push(b);
+    markRect(c, u, n, w / 2, d / 2);
+  }
+  I.taxi.forEach(function (e) {
+    var A = P[e[0]], B = P[e[1]], dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy);
+    var u = [dx / L, dy / L];
+    [1, -1].forEach(function (s) {
+      var n = [-u[1] * s, u[0] * s], t = 12;
+      while (t < L - 12) {
+        var w = 6 + rnd() * 6.5, d = 7 + rnd() * 5, off = 8.4 + d / 2;
+        var c = [A[0] + u[0] * (t + w / 2) + n[0] * off, A[1] + u[1] * (t + w / 2) + n[1] * off];
+        if (t + w < L - 10 && freeRect(c, u, n, w / 2 - 0.4, d / 2 - 0.4)) {
+          addBuilding(c, u, n, w, d);
+          if (rnd() < 0.75) {
+            var d2 = 5.5 + rnd() * 5, off2 = off + d / 2 + 1.6 + d2 / 2, c2 = [A[0] + u[0] * (t + w / 2) + n[0] * off2, A[1] + u[1] * (t + w / 2) + n[1] * off2];
+            if (freeRect(c2, u, n, w / 2, d2 / 2)) addBuilding(c2, u, n, w, d2);
+          }
+          t += w + 0.9;
+        } else t += 1.5;
+      }
+    });
+  });
+  minor.forEach(function (sg) {
+    var A = sg[0], B = sg[1], dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy), u = [dx / L, dy / L];
+    [1, -1].forEach(function (s) {
+      var n = [-u[1] * s, u[0] * s], t = 1;
+      while (t < L - 1) {
+        var w = 5.5 + rnd() * 5, d = 5.5 + rnd() * 4, off = 3.8 + d / 2;
+        var c = [A[0] + u[0] * (t + w / 2) + n[0] * off, A[1] + u[1] * (t + w / 2) + n[1] * off];
+        if (t + w <= L && !at(near, c[0], c[1]) && freeRect(c, u, n, w / 2 - 0.3, d / 2 - 0.3)) { addBuilding(c, u, n, w, d); t += w + 0.8; }
+        else t += 1.5;
+      }
+    });
+  });
+  // Interior of blocks: more houses near streets, gardens and trees deeper in.
+  function nearestRoadDir(x, y) {
+    var best = 1e9, dir = [1, 0];
+    I.taxi.forEach(function (e) {
+      var A = P[e[0]], B = P[e[1]], vx = B[0] - A[0], vy = B[1] - A[1], l2 = vx * vx + vy * vy;
+      var t = Math.max(0, Math.min(1, ((x - A[0]) * vx + (y - A[1]) * vy) / l2)), d = Math.hypot(A[0] + t * vx - x, A[1] + t * vy - y);
+      if (d < best) { best = d; dir = [vx / Math.sqrt(l2), vy / Math.sqrt(l2)]; }
+    });
+    if (best > 30) minor.forEach(function (sg) {
+      var A = sg[0], B = sg[1], vx = B[0] - A[0], vy = B[1] - A[1], l2 = vx * vx + vy * vy;
+      if (Math.abs(A[0] - x) > 60 || Math.abs(A[1] - y) > 60) return;
+      var t = Math.max(0, Math.min(1, ((x - A[0]) * vx + (y - A[1]) * vy) / l2)), d = Math.hypot(A[0] + t * vx - x, A[1] + t * vy - y);
+      if (d < best) { best = d; dir = [vx / Math.sqrt(l2), vy / Math.sqrt(l2)]; }
+    });
+    return { d: best, u: dir };
+  }
+  // Phase A: pack the blocks with houses aligned to the nearest street.
+  for (var k = 0; k < (W * H) / 12; k++) {
+    var x = rnd() * W, y = rnd() * H;
+    if (at(road, x, y) || at(water, x, y) || at(occ, x, y) || at(park, x, y)) continue;
+    var nr = nearestRoadDir(x, y);
+    if (nr.d > 30 || rnd() < 0.08) continue; // leave the odd garden
+    var u2 = nr.u, n2 = [-u2[1], u2[0]], w3 = 5.5 + rnd() * 5.5, d3 = 5.5 + rnd() * 4.5;
+    if (freeRect([x, y], u2, n2, w3 / 2, d3 / 2)) addBuilding([x, y], u2, n2, w3, d3);
+  }
+  // Phase B: trees in parks and whatever gardens remain.
+  for (k = 0; k < (W * H) / 24; k++) {
+    x = rnd() * W; y = rnd() * H;
+    if (at(road, x, y) || at(water, x, y) || at(occ, x, y)) continue;
+    if (rnd() < (at(park, x, y) ? 0.6 : 0.45)) { var r = 2.4 + rnd() * 2.6; trees.push({ x: x, y: y, r: r }); markDisc(x, y, r * 0.8); }
+  }
+
+  // ---------- paint ----------
+  var cv = document.createElement("canvas"); cv.width = Math.round(W * SC); cv.height = Math.round(H * SC);
+  var ctx = cv.getContext("2d");
+  ctx.scale(SC, SC);
+  ctx.fillStyle = "#a6c777"; ctx.fillRect(0, 0, W, H);
+  // Garden texture.
+  for (var g = 0; g < (W * H) / 40; g++) {
+    ctx.fillStyle = rnd() < 0.5 ? "rgba(70,120,40,.10)" : "rgba(220,235,170,.10)";
+    ctx.fillRect(rnd() * W, rnd() * H, 2 + rnd() * 3, 2 + rnd() * 3);
+  }
+  ctx.save(); ctx.scale(1 / osc, 1 / osc);
+  osmPath(ctx, I.osm.green, 1); ctx.fillStyle = "#88c25d"; ctx.fill("evenodd");
+  ctx.restore();
+  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
+  minor.forEach(function (s) { ctx.moveTo(s[0][0], s[0][1]); ctx.lineTo(s[1][0], s[1][1]); });
+  ctx.strokeStyle = "#d4c7a8"; ctx.lineWidth = 5.4; ctx.stroke();
+  ctx.strokeStyle = "#f3ecdb"; ctx.lineWidth = 3.8; ctx.stroke();
+  // Pavements along every street and squares around stations.
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = "#d9cdb0"; ctx.lineWidth = 17.5; roadsPath(ctx); ctx.stroke();
+  ctx.strokeStyle = "#ece3cc"; ctx.lineWidth = 16; roadsPath(ctx); ctx.stroke();
+  I.stations.forEach(function (s) { ctx.beginPath(); ctx.arc(s[0], s[1], 17, 0, 7); ctx.fillStyle = "#ece3cc"; ctx.fill(); });
+  // River with stone embankments.
+  ctx.save(); ctx.scale(1 / osc, 1 / osc);
+  osmPath(ctx, I.osm.water, 1);
+  ctx.lineWidth = 7 * osc; ctx.strokeStyle = "#b9ab8a"; ctx.stroke();
+  ctx.lineWidth = 4.5 * osc; ctx.strokeStyle = "#d8ccab"; ctx.stroke();
+  ctx.fillStyle = "#4ea6dd"; ctx.fill("evenodd");
+  ctx.restore();
+  for (var wv = 0; wv < 700; wv++) {
+    var wx = rnd() * W, wy = rnd() * H;
+    if (!at(water, wx, wy)) continue;
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(wx - 4, wy); ctx.quadraticCurveTo(wx, wy - 1.5, wx + 4, wy); ctx.stroke();
+  }
+
+  // Shadows first, then everything sorted back-to-front.
+  ctx.fillStyle = "rgba(45,35,20,.28)";
+  buildings.forEach(function (b) {
+    var sx = b.h * 0.55, sy = b.h * 0.22, q = corners(b);
+    ctx.beginPath(); ctx.moveTo(q[0][0] + sx, q[0][1] + sy);
+    for (var i = 1; i < 4; i++) ctx.lineTo(q[i][0] + sx, q[i][1] + sy);
+    ctx.closePath(); ctx.fill();
+  });
+  trees.forEach(function (t) { ctx.beginPath(); ctx.ellipse(t.x + t.r * 0.7, t.y + t.r * 0.35, t.r * 1.05, t.r * 0.55, 0, 0, 7); ctx.fill(); });
+  function corners(b) {
+    var hw = b.w / 2, hd = b.d / 2, c = b.c, u = b.u, n = b.n;
+    return [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(function (p) { return [c[0] + u[0] * p[0] + n[0] * p[1], c[1] + u[1] * p[0] + n[1] * p[1]]; });
+  }
+  function shade(hex, f) {
+    var v = parseInt(hex.slice(1), 16), r = (v >> 16) & 255, g2 = (v >> 8) & 255, b2 = v & 255;
+    var m = function (x) { return Math.max(0, Math.min(255, Math.round(x * f))); };
+    return "rgb(" + m(r) + "," + m(g2) + "," + m(b2) + ")";
+  }
+  function quad(a, b, c, d, fill) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
+  function drawBuilding(b) {
+    var q = corners(b), h = b.h, up = function (p) { return [p[0], p[1] - h]; };
+    // Ensure clockwise order so outward normals are consistent.
+    var area = 0;
+    for (var i = 0; i < 4; i++) area += q[i][0] * q[(i + 1) % 4][1] - q[(i + 1) % 4][0] * q[i][1];
+    if (area < 0) q.reverse();
+    for (i = 0; i < 4; i++) {
+      var a = q[i], c = q[(i + 1) % 4], ex = c[0] - a[0], ey = c[1] - a[1], len = Math.hypot(ex, ey);
+      var nx = ey / len, ny = -ex / len;
+      if (ny <= 0.05) continue; // only walls facing the viewer
+      var lit = 0.86 + 0.14 * (-nx);
+      quad(a, c, up(c), up(a), shade(b.wall, lit * (0.92 + 0.08 * ny)));
+      if (len > 5 && h > 3.4) {
+        ctx.fillStyle = "rgba(55,65,85,.55)";
+        for (var s = 1.6; s < len - 1.2; s += 2.4)
+          for (var row = 0.3; row < 0.9; row += 0.36) {
+            var wx = a[0] + (ex / len) * s, wy = a[1] + (ey / len) * s - h * row;
+            ctx.fillRect(wx, wy - 0.6, 0.85, 1.1);
+          }
+      }
+    }
+    var r = q.map(up);
+    if (b.roof === "flat") {
+      quad(r[0], r[1], r[2], r[3], b.roofCol);
+      ctx.strokeStyle = shade(b.roofCol, 0.8); ctx.lineWidth = 0.6; ctx.stroke();
+      return;
+    }
+    // Hip roof: ridge along the long axis.
+    var long01 = Math.hypot(r[1][0] - r[0][0], r[1][1] - r[0][1]) >= Math.hypot(r[2][0] - r[1][0], r[2][1] - r[1][1]);
+    var A = long01 ? r : [r[1], r[2], r[3], r[0]];
+    var mid0 = [(A[0][0] + A[3][0]) / 2, (A[0][1] + A[3][1]) / 2], mid1 = [(A[1][0] + A[2][0]) / 2, (A[1][1] + A[2][1]) / 2];
+    var Ls = Math.hypot(mid1[0] - mid0[0], mid1[1] - mid0[1]), Ss = Math.hypot(A[3][0] - A[0][0], A[3][1] - A[0][1]);
+    var inset = Math.min(0.45, (Ss / 2) / (Ls || 1));
+    var R1 = [mid0[0] + (mid1[0] - mid0[0]) * inset, mid0[1] + (mid1[1] - mid0[1]) * inset - h * 0.12 - 1.2];
+    var R2 = [mid1[0] + (mid0[0] - mid1[0]) * inset, mid1[1] + (mid0[1] - mid1[1]) * inset - h * 0.12 - 1.2];
+    var col = b.roofCol;
+    quad(A[3], A[0], R1, R1, shade(col, 1.12));
+    quad(A[1], A[2], R2, R2, shade(col, 0.82));
+    quad(A[0], A[1], R2, R1, shade(col, (A[0][1] + A[1][1]) / 2 < (A[2][1] + A[3][1]) / 2 ? 1.02 : 0.9));
+    quad(A[2], A[3], R1, R2, shade(col, (A[0][1] + A[1][1]) / 2 < (A[2][1] + A[3][1]) / 2 ? 0.9 : 1.02));
+    ctx.strokeStyle = shade(col, 0.68); ctx.lineWidth = 0.45;
+    ctx.beginPath(); ctx.moveTo(R1[0], R1[1]); ctx.lineTo(R2[0], R2[1]); ctx.stroke();
+    ctx.beginPath(); for (i = 0; i < 4; i++) ctx[i ? "lineTo" : "moveTo"](r[i][0], r[i][1]); ctx.closePath(); ctx.stroke();
+  }
+  function drawTree(t) {
+    var greens = ["#3f8a3a", "#4f9a3e", "#5aa646", "#6fb24f", "#47913c"];
+    var c = greens[Math.floor((t.x * 7 + t.y * 3) % greens.length)];
+    ctx.fillStyle = "#6b4a2b"; ctx.fillRect(t.x - 0.5, t.y - 1.5, 1, 2);
+    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.7, t.r, 0, 7); ctx.fillStyle = c; ctx.fill();
+    ctx.beginPath(); ctx.arc(t.x - t.r * 0.35, t.y - t.r * 1.05, t.r * 0.5, 0, 7); ctx.fillStyle = "rgba(255,255,210,.22)"; ctx.fill();
+  }
+
+  // ---------- generic landmark icons (original shapes) ----------
+  var STONE = "#ece6d8", STONE2 = "#cfc6b2", STONE3 = "#b3a990", SLATE = "#7e8a9c", GOLD = "#d9b24a", GLASS = "#9fc4dd";
+  function box(x, y, w, d, h, wall, roof) { // axis-aligned oblique block centred at (x, y) footprint
+    quad([x - w / 2, y + d / 2], [x + w / 2, y + d / 2], [x + w / 2, y + d / 2 - h], [x - w / 2, y + d / 2 - h], wall);
+    quad([x - w / 2, y - d / 2 - h], [x + w / 2, y - d / 2 - h], [x + w / 2, y + d / 2 - h], [x - w / 2, y + d / 2 - h], roof);
+    ctx.strokeStyle = "rgba(70,60,45,.45)"; ctx.lineWidth = 0.5;
+    ctx.strokeRect(x - w / 2, y + d / 2 - h, w, h);
+  }
+  function windows(x, y, w, h, rows, gap) {
+    ctx.fillStyle = "rgba(60,70,90,.55)";
+    for (var r = 0; r < rows; r++) for (var i = x - w / 2 + 1.5; i < x + w / 2 - 1; i += gap) ctx.fillRect(i, y - h + 2 + r * (h - 3) / rows, 0.9, 1.4);
+  }
+  function columns(x, y, w, h, n) {
+    ctx.fillStyle = STONE;
+    for (var i = 0; i < n; i++) ctx.fillRect(x - w / 2 + 1 + (i * (w - 3)) / (n - 1), y - h, 1.1, h);
+    ctx.fillStyle = "rgba(80,70,55,.3)";
+    for (i = 0; i < n - 1; i++) ctx.fillRect(x - w / 2 + 2.1 + (i * (w - 3)) / (n - 1), y - h, (w - 3) / (n - 1) - 1.1, h);
+  }
+  function pediment(x, y, w) { ctx.beginPath(); ctx.moveTo(x - w / 2, y); ctx.lineTo(x, y - w * 0.22); ctx.lineTo(x + w / 2, y); ctx.closePath(); ctx.fillStyle = STONE; ctx.fill(); ctx.strokeStyle = STONE3; ctx.lineWidth = 0.5; ctx.stroke(); }
+  function dome(x, y, r, col) { ctx.beginPath(); ctx.ellipse(x, y, r, r * 1.05, 0, Math.PI, 0); ctx.closePath(); var g = ctx.createLinearGradient(x - r, 0, x + r, 0); g.addColorStop(0, shade(col, 1.15)); g.addColorStop(1, shade(col, 0.75)); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(60,60,60,.4)"; ctx.lineWidth = 0.5; ctx.stroke(); }
+  function flag(x, y) { ctx.strokeStyle = "#5b4a3a"; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 7); ctx.stroke(); quad([x, y - 7], [x + 4, y - 6.2], [x + 4, y - 4.4], [x, y - 5.2], "#c43b32"); }
+  var ICON = {
+    dome: function (x, y) { box(x, y + 4, 26, 12, 9, STONE2, STONE); columns(x, y + 10, 10, 6, 5); box(x, y - 2, 10, 8, 6, STONE, STONE2); dome(x, y - 8, 6.5, "#8e9aa6"); ctx.fillStyle = GOLD; ctx.fillRect(x - 0.9, y - 19, 1.8, 4); ctx.beginPath(); ctx.arc(x, y - 19.5, 1.3, 0, 7); ctx.fill(); },
+    museum: function (x, y) { box(x, y + 3, 30, 14, 9, STONE2, STONE); columns(x, y + 10, 18, 7, 8); pediment(x, y + 3 - 0.2, 20); },
+    castle: function (x, y) { box(x, y + 3, 24, 18, 6, STONE3, STONE2); box(x, y + 1, 12, 10, 12, STONE2, STONE); [[-11, -8], [11, -8], [-11, 9], [11, 9]].forEach(function (o) { box(x + o[0], y + 3 + o[1] * 0.6, 4, 4, 9, STONE2, STONE); }); [-4, 4].forEach(function (o) { ctx.fillStyle = SLATE; ctx.beginPath(); ctx.moveTo(x + o - 1.8, y - 10); ctx.lineTo(x + o, y - 14); ctx.lineTo(x + o + 1.8, y - 10); ctx.fill(); }); },
+    bridge: function (x, y) { ctx.fillStyle = "#3c6fa8"; ctx.fillRect(x - 20, y - 2, 40, 3); [-8, 8].forEach(function (o) { box(x + o, y + 2, 6, 5, 15, STONE2, STONE); ctx.fillStyle = SLATE; ctx.beginPath(); ctx.moveTo(x + o - 3, y - 13); ctx.lineTo(x + o, y - 18); ctx.lineTo(x + o + 3, y - 13); ctx.fill(); }); ctx.fillStyle = "#3c6fa8"; ctx.fillRect(x - 5, y - 10, 10, 1.6); },
+    clock: function (x, y) { box(x, y + 4, 7, 6, 24, "#d8c595", "#e6d6ab"); ctx.beginPath(); ctx.arc(x, y - 15, 2.6, 0, 7); ctx.fillStyle = "#fff8e0"; ctx.fill(); ctx.strokeStyle = "#5b4a2a"; ctx.lineWidth = 0.5; ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - 3.5, y - 20); ctx.lineTo(x, y - 29); ctx.lineTo(x + 3.5, y - 20); ctx.fillStyle = SLATE; ctx.fill(); },
+    church: function (x, y) { box(x, y + 4, 22, 9, 8, STONE2, SLATE); [-8, 8].forEach(function (o) { box(x + o, y + 5, 5, 5, 16, STONE2, STONE); }); ctx.fillStyle = "rgba(60,70,90,.5)"; ctx.beginPath(); ctx.arc(x, y + 2, 2, 0, 7); ctx.fill(); },
+    palace: function (x, y) { box(x, y + 3, 34, 14, 9, STONE, "#d9d2c0"); windows(x, y + 10, 32, 7, 2, 2.6); columns(x, y + 10, 8, 7, 4); pediment(x, y + 3, 10); flag(x, y - 2); },
+    wheel: function (x, y) { ctx.strokeStyle = "#e9eef2"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y - 6, 12, 0, 7); ctx.stroke(); ctx.lineWidth = 0.4; for (var a = 0; a < 6.28; a += 0.52) { ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + Math.cos(a) * 12, y - 6 + Math.sin(a) * 12); ctx.stroke(); } ctx.fillStyle = "#e9eef2"; for (a = 0; a < 6.28; a += 0.52) ctx.fillRect(x + Math.cos(a) * 12 - 1, y - 6 + Math.sin(a) * 12 - 1, 2, 2); ctx.strokeStyle = "#8b96a3"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 6, y + 7); ctx.lineTo(x, y - 6); ctx.lineTo(x + 6, y + 7); ctx.stroke(); },
+    column: function (x, y) { box(x, y + 5, 7, 7, 3, STONE2, STONE); ctx.fillStyle = STONE; ctx.fillRect(x - 1.2, y - 18, 2.4, 20); ctx.fillStyle = STONE3; ctx.fillRect(x + 0.3, y - 18, 0.9, 20); ctx.fillStyle = "#6e6a62"; ctx.beginPath(); ctx.arc(x, y - 20, 1.8, 0, 7); ctx.fill(); },
+    chimney: function (x, y) { box(x, y + 3, 26, 14, 9, "#b87a55", "#9c6a4c"); [-9, 9].forEach(function (o) { ctx.fillStyle = "#e8e2d6"; ctx.fillRect(x + o - 1.6, y - 19, 3.2, 17); ctx.fillStyle = "#bdb6a8"; ctx.fillRect(x + o + 0.4, y - 19, 1.2, 17); }); },
+    shard: function (x, y) { ctx.beginPath(); ctx.moveTo(x - 6, y + 5); ctx.lineTo(x, y - 30); ctx.lineTo(x + 6, y + 5); ctx.closePath(); var g = ctx.createLinearGradient(x - 6, 0, x + 6, 0); g.addColorStop(0, "#d6ecf7"); g.addColorStop(1, "#7aa3bf"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(60,90,110,.5)"; ctx.lineWidth = 0.4; ctx.stroke(); },
+    gherkin: function (x, y) { ctx.beginPath(); ctx.ellipse(x, y - 8, 5, 13, 0, 0, 7); var g = ctx.createLinearGradient(x - 5, 0, x + 5, 0); g.addColorStop(0, "#bfe0ef"); g.addColorStop(1, "#4f7f9c"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(30,60,80,.45)"; ctx.lineWidth = 0.4; for (var k = -10; k < 6; k += 3) { ctx.beginPath(); ctx.moveTo(x - 5, y - 8 + k); ctx.lineTo(x + 5, y - 8 + k + 4); ctx.stroke(); } },
+    fountain: function (x, y) { ctx.beginPath(); ctx.ellipse(x, y + 2, 9, 5, 0, 0, 7); ctx.fillStyle = STONE2; ctx.fill(); ctx.beginPath(); ctx.ellipse(x, y + 1.5, 7, 3.6, 0, 0, 7); ctx.fillStyle = GLASS; ctx.fill(); ctx.fillStyle = STONE; ctx.fillRect(x - 1, y - 8, 2, 9); ctx.fillStyle = GOLD; ctx.beginPath(); ctx.arc(x, y - 9, 1.6, 0, 7); ctx.fill(); },
+    market: function (x, y) { box(x, y + 4, 28, 12, 6, STONE2, STONE); ctx.beginPath(); ctx.ellipse(x, y - 2, 13, 5, 0, Math.PI, 0); ctx.fillStyle = "#9fb6c4"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = 0.5; for (var i = -10; i <= 10; i += 3.3) { ctx.beginPath(); ctx.moveTo(x + i, y - 2); ctx.lineTo(x + i * 0.9, y - 6); ctx.stroke(); } },
+    hall: function (x, y) { ctx.beginPath(); ctx.ellipse(x, y + 1, 13, 8, 0, 0, 7); ctx.fillStyle = "#c58a64"; ctx.fill(); ctx.fillStyle = "#b07450"; ctx.fillRect(x - 13, y - 4, 26, 5); ctx.beginPath(); ctx.ellipse(x, y - 4, 13, 7, 0, 0, 7); ctx.fillStyle = "#c9cfd4"; ctx.fill(); ctx.beginPath(); ctx.ellipse(x, y - 6, 7, 3.6, 0, 0, 7); ctx.fillStyle = "#e9eef1"; ctx.fill(); },
+    mast: function (x, y) { ctx.fillStyle = "#c9cdd2"; ctx.fillRect(x - 2.2, y - 24, 4.4, 28); ctx.fillStyle = "#9aa2ab"; ctx.fillRect(x + 0.6, y - 24, 1.6, 28); [-18, -14, -10].forEach(function (o) { ctx.fillStyle = "#8e98a4"; ctx.fillRect(x - 3.5, y + o, 7, 1.6); }); ctx.fillStyle = "#dfe3e6"; ctx.fillRect(x - 0.6, y - 30, 1.2, 6); },
+    station: function (x, y) { box(x, y + 4, 34, 14, 6, "#c08d68", "#b47f5a"); ctx.fillStyle = "#a9bccb"; for (var i = 0; i < 2; i++) { ctx.beginPath(); ctx.ellipse(x - 8 + i * 16, y - 2, 7.5, 4, 0, Math.PI, 0); ctx.fill(); } ctx.strokeStyle = "rgba(255,255,255,.65)"; ctx.lineWidth = 0.4; for (i = -15; i <= 15; i += 2.5) { ctx.beginPath(); ctx.moveTo(x + i, y - 2); ctx.lineTo(x + i, y - 5.5); ctx.stroke(); } box(x, y + 6, 6, 3, 13, "#c08d68", "#a87352"); ctx.beginPath(); ctx.arc(x, y - 3.5, 1.4, 0, 7); ctx.fillStyle = "#fff"; ctx.fill(); },
+    globe: function (x, y) { ctx.beginPath(); ctx.ellipse(x, y, 10, 6.5, 0, 0, 7); ctx.fillStyle = "#e9dcc0"; ctx.fill(); ctx.strokeStyle = "#6e5236"; ctx.lineWidth = 1; ctx.stroke(); ctx.beginPath(); ctx.ellipse(x, y - 3, 10, 6.5, 0, Math.PI, 0); ctx.fillStyle = "#b9a37a"; ctx.fill(); ctx.beginPath(); ctx.ellipse(x, y - 2, 5.5, 3, 0, 0, 7); ctx.fillStyle = "#7ea85a"; ctx.fill(); },
+    stadium: function (x, y) { ctx.beginPath(); ctx.ellipse(x, y, 17, 10, 0, 0, 7); ctx.fillStyle = "#d8d3c8"; ctx.fill(); ctx.strokeStyle = "#9a948a"; ctx.lineWidth = 1; ctx.stroke(); ctx.beginPath(); ctx.ellipse(x, y, 11, 6, 0, 0, 7); ctx.fillStyle = "#5fae4a"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 0.5; ctx.strokeRect(x - 6, y - 3, 12, 6); },
+    arch: function (x, y) { box(x, y + 3, 16, 6, 12, STONE, STONE2); ctx.beginPath(); ctx.ellipse(x, y + 6, 3.6, 5.5, 0, Math.PI, 0); ctx.lineTo(x + 3.6, y + 6); ctx.lineTo(x - 3.6, y + 6); ctx.fillStyle = "rgba(60,60,60,.6)"; ctx.fill(); }
+  };
+  function drawLandmark(m) {
+    ctx.save();
+    ctx.fillStyle = "rgba(45,35,20,.25)"; ctx.beginPath(); ctx.ellipse(m.x + 3, m.y + m.r * 0.45, m.r, m.r * 0.45, 0, 0, 7); ctx.fill();
+    (ICON[m.l.icon] || ICON.museum)(m.x, m.y);
+    ctx.restore();
+  }
+
+  var items = buildings.map(function (b) { return { y: Math.max.apply(null, corners(b).map(function (q) { return q[1]; })), b: b }; })
+    .concat(trees.map(function (t) { return { y: t.y + t.r, t: t }; }))
+    .concat(marks.map(function (m) { return { y: m.y + m.r * 0.6, m: m }; }));
+  items.sort(function (a, b) { return a.y - b.y; });
+  items.forEach(function (it) { if (it.b) drawBuilding(it.b); else if (it.t) drawTree(it.t); else drawLandmark(it.m); });
+
+
+  // ---------- name tags (white plates like street signs), clear of roads and stations ----------
+  var plates = [];
+  function plate(text, x, y, opts) {
+    opts = opts || {};
+    ctx.font = (opts.italic ? "italic " : "") + "700 " + (opts.size || 6.4) + "px Georgia, serif";
+    var w = ctx.measureText(text).width + 5, h = (opts.size || 6.4) + 3.6;
+    var tries = opts.tries || [[0, 0]];
+    for (var k = 0; k < tries.length; k++) {
+      var cx = x + tries[k][0], cy = y + tries[k][1], x0 = cx - w / 2, y0 = cy - h / 2, ok = x0 > 2 && y0 > 2 && x0 + w < W - 2 && y0 + h < H - 2;
+      for (var a = x0; a <= x0 + w && ok; a += 2) for (var b = y0; b <= y0 + h && ok; b += 2) if (at(road, a, b) || at(lines, a, b)) ok = false;
+      for (var s = 0; s < I.stations.length && ok; s++) {
+        var sp = I.stations[s], qx = Math.max(x0, Math.min(sp[0], x0 + w)), qy = Math.max(y0, Math.min(sp[1], y0 + h));
+        if (Math.hypot(qx - sp[0], qy - sp[1]) < 25) ok = false;
+      }
+      for (var p = 0; p < plates.length && ok; p++) { var q = plates[p]; if (x0 < q[2] && x0 + w > q[0] && y0 < q[3] && y0 + h > q[1]) ok = false; }
+      if (!ok) continue;
+      plates.push([x0 - 1, y0 - 1, x0 + w + 1, y0 + h + 1]);
+      if (opts.plain) {
+        ctx.lineJoin = "round"; ctx.strokeStyle = opts.halo; ctx.lineWidth = 2.4; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.strokeText(text, cx, cy); ctx.fillStyle = opts.color; ctx.fillText(text, cx, cy);
+      } else {
+        ctx.fillStyle = "rgba(255,253,246,.95)"; ctx.fillRect(x0, y0, w, h);
+        ctx.strokeStyle = "#3b3a36"; ctx.lineWidth = 0.6; ctx.strokeRect(x0, y0, w, h);
+        ctx.fillStyle = "#26251f"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, cx, cy + 0.3);
+      }
+      return true;
+    }
+    return false;
+  }
+  marks.forEach(function (m) {
+    plate(m.l.name.toUpperCase(), m.x, m.y + m.r + 4, { tries: [[0, 0], [0, -m.r * 2 - 14], [m.r + 20, -m.r * 0.5], [-m.r - 20, -m.r * 0.5], [0, 8]] });
+  });
+  I.parks.forEach(function (p) {
+    plate(p.t, p.x, p.y, { plain: true, italic: true, size: 8.5, color: "#245c1f", halo: "rgba(225,240,205,.9)", tries: [[0, 0], [0, 14], [0, -14], [20, 0], [-20, 0]] });
+  });
+  (I.riverLabels || []).forEach(function (r) {
+    ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.a);
+    ctx.font = "italic 700 9.5px Georgia, serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(30,90,150,.55)"; ctx.lineWidth = 2.4; ctx.strokeText("RIVER THAMES", 0, 0);
+    ctx.fillStyle = "#eaf6ff"; ctx.fillText("RIVER THAMES", 0, 0);
+    ctx.restore();
+  });
+
+  var vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, "rgba(40,30,10,0)"); vg.addColorStop(1, "rgba(40,30,10,.22)");
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  ctx.font = "7px system-ui, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+  ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillRect(W - 152, H - 11, 150, 10);
+  ctx.fillStyle = "rgba(50,40,30,.85)"; ctx.fillText("Map data © OpenStreetMap contributors", W - 5, H - 2.5);
+  window.__stats = { minor: minor.length, buildings: buildings.length, trees: trees.length, landmarks: marks.length + "/" + I.landmarks.length, plates: plates.length };
+  return cv.toDataURL("image/jpeg", I.quality || 0.86);
+};
+document.title = "ready";
+</script>
+</body></html>

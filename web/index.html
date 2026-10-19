@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#1b2231">
+<meta name="description" content="Shadow Line: a hide-and-seek detective game across an illustrated London. Play solo or online with friends.">
+<title>Shadow Line: hunt Mr. X across London</title>
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shadow Line">
+<!-- Display font: loaded without blocking the first paint; system fonts are the fallback. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/oswald@5.2.5/500.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/oswald@5.2.5/700.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/map.css">
+</head>
+<body>
+
+<section id="menu" class="screen">
+  <div class="menu-inner">
+    <h1 class="disp brand">Shadow<br>Line</h1>
+    <p class="tag">One fugitive. Up to seven detectives. Twenty-four moves across London, and he only shows his face five times.</p>
+    <button class="role hidden" id="mContinue"><b>Continue your game</b><span id="mContinueInfo"></span></button>
+    <button class="role" id="mOnline"><b>Play online with friends</b><span>2 to 8 players. A game master hosts and hands out the roles.</span></button>
+    <button class="role" id="mSoloDet"><b>Solo: play the detectives</b><span>The computer plays Mr. X.</span></button>
+    <button class="role" id="mSoloX"><b>Solo: play Mr. X</b><span>The computer plays the detectives.</span></button>
+    <div class="menu-links">
+      <button class="linkbtn" id="mHelp">How to play</button>
+      <button class="linkbtn" id="mSettings">Settings</button>
+      <button class="linkbtn" id="mAbout">About</button>
+    </div>
+  </div>
+</section>
+
+<section id="setup" class="screen hidden">
+  <div class="menu-inner">
+    <button class="linkbtn back" id="sBack">&larr; Back</button>
+    <h2 class="disp" id="sTitle">Solo game</h2>
+    <label class="field"><span>Your name <small class="note">(optional)</small></span>
+      <input class="txt" id="sName" maxlength="16" autocomplete="nickname" placeholder="e.g. Flora"></label>
+    <label class="field" id="sAliasRow"><span>Mr. X's alias <small class="note">(optional, shown instead of "Mr. X")</small></span>
+      <input class="txt" id="sAlias" maxlength="20" placeholder="e.g. Moriarty"></label>
+    <label class="field"><span>Detectives on the board</span>
+      <div class="seg" id="sDets" role="radiogroup" aria-label="Detectives on the board"></div>
+    </label>
+    <label class="field"><span>Computer skill</span>
+      <div class="seg" id="sLevel" role="radiogroup" aria-label="Computer skill"></div>
+    </label>
+    <label class="switch"><input type="checkbox" id="sTactical"><span>Tactical hints (possible Mr. X stations, danger zones)</span></label>
+    <p class="note" id="sNote"></p>
+    <button class="btn pri big" id="sStart">Start game</button>
+  </div>
+</section>
+
+<section id="online" class="screen hidden">
+  <div class="menu-inner" id="onlineInner"></div>
+</section>
+
+<section id="game" class="screen hidden" data-tab="play">
+  <header id="bar">
+    <button class="ib" id="gMenu" aria-label="Game menu">&#9776;</button>
+    <div class="bar-mid"><div class="r" id="gRound"></div><div class="t" id="gStatus" aria-live="polite"></div></div>
+    <button class="ib" id="gHelp" aria-label="How to play">?</button>
+  </header>
+  <div id="net" class="hidden" role="status"></div>
+  <div id="travel" aria-label="Mr. X's travel log"><div id="travelIn"></div></div>
+  <main id="views">
+    <div id="vPlay" class="view" aria-label="Play"></div>
+    <div id="vMap" class="view" aria-label="Map">
+      <div id="mapbox"></div>
+      <div class="zoom">
+        <button id="zIn" aria-label="Zoom in">+</button>
+        <button id="zOut" aria-label="Zoom out">&minus;</button>
+        <button id="zFit" aria-label="Fit the whole map">&#9635;</button>
+        <button id="zMe" aria-label="Centre on my piece">&#9678;</button>
+      </div>
+      <div id="replayBar" class="hidden"></div>
+      <div id="painting" class="hidden">Drawing the map&hellip;</div>
+    </div>
+    <div id="vLog" class="view" aria-label="Activity log"></div>
+  </main>
+  <nav id="tabs" role="tablist">
+    <button role="tab" data-tab="play" id="tPlay"><span class="ti">&#9654;</span>Play</button>
+    <button role="tab" data-tab="map" id="tMap"><span class="ti">&#9783;</span>Map</button>
+    <button role="tab" data-tab="log" id="tLog"><span class="ti">&#9776;</span>Log</button>
+  </nav>
+  <div id="toast" class="hidden" role="status"></div>
+</section>
+
+<div id="sheet" class="layer hidden"><div class="card" id="sheetCard" role="dialog" aria-modal="true"></div></div>
+<div id="overlay" class="layer hidden"><div class="card" id="overlayCard" role="dialog" aria-modal="true"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
+<script src="data/board.js"></script>
+<script src="js/config.js"></script>
+<script src="js/store.js"></script>
+<script src="js/board.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/terrain.js"></script>
+<script src="js/mapview.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/net.js"></script>
+</body>
+</html>

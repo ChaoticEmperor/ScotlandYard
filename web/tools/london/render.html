@@ -1,0 +1,135 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Shadow Line London renderer</title></head>
+<body style="margin:0">
+<script>
+// Paints the projected OpenStreetMap features (project_osm.py) as a muted vintage city map.
+// Driven by rasterize.cjs: window.render(data, stations) -> JPEG data URL.
+// Map data (c) OpenStreetMap contributors, ODbL.
+window.render = function (D, stations, opts) {
+  opts = opts || {};
+  var sc = D.scale, W = Math.round(D.W * sc), H = Math.round(D.H * sc);
+  var cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  var ctx = cv.getContext("2d");
+  var C = {
+    land: "#efe7d6", block: "#e6dcc8", bldg: "#ddd1bb", bldgEdge: "#cfc2a8",
+    green: "#c3dba0", greenEdge: "#a9c985", water: "#9fcdea", waterEdge: "#79b2da",
+    rail: "#9d968a", casing: "#cfc3ad", road: "#fffcf4", major: "#fbe9b5", trunk: "#f4d58c",
+    label: "#7b6a55", park: "#4d7a3a", river: "#3f7fb0"
+  };
+
+  function poly(flat, close) {
+    ctx.moveTo(flat[0], flat[1]);
+    for (var i = 2; i < flat.length; i += 2) ctx.lineTo(flat[i], flat[i + 1]);
+    if (close) ctx.closePath();
+  }
+  function fillAreas(list, fill, edge, ew) {
+    ctx.beginPath();
+    list.forEach(function (f) { poly(f.p, true); (f.h || []).forEach(function (h) { poly(h, true); }); });
+    ctx.fillStyle = fill; ctx.fill("evenodd");
+    if (edge) { ctx.strokeStyle = edge; ctx.lineWidth = ew * sc; ctx.stroke(); }
+  }
+
+  ctx.fillStyle = C.land; ctx.fillRect(0, 0, W, H);
+  // A faint paper grain keeps the large flat areas from looking digital.
+  var grain = ctx.createImageData(W, H), gd = grain.data, seed = 7;
+  for (var i = 0; i < gd.length; i += 4) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    var v = (seed >> 16) & 255;
+    gd[i] = gd[i + 1] = gd[i + 2] = v; gd[i + 3] = 9;
+  }
+  var gc = document.createElement("canvas"); gc.width = W; gc.height = H; gc.getContext("2d").putImageData(grain, 0, 0);
+
+  fillAreas(D.green, C.green, C.greenEdge, 0.6);
+
+  ctx.beginPath();
+  D.buildings.forEach(function (b) { poly(b, true); });
+  ctx.fillStyle = C.bldg; ctx.fill();
+  ctx.strokeStyle = C.bldgEdge; ctx.lineWidth = 0.35 * sc; ctx.stroke();
+
+  fillAreas(D.water, C.water, C.waterEdge, 1.1);
+
+  // Railways: grey line with pale ties.
+  ctx.lineCap = "butt"; ctx.lineJoin = "round";
+  ctx.beginPath(); D.rail.forEach(function (r) { poly(r, false); });
+  ctx.strokeStyle = C.rail; ctx.lineWidth = 1.6 * sc; ctx.stroke();
+  ctx.setLineDash([2 * sc, 3 * sc]); ctx.strokeStyle = "#f2ece0"; ctx.lineWidth = 0.7 * sc; ctx.stroke(); ctx.setLineDash([]);
+
+  // Roads: casings for every class first, then fills from minor to major.
+  var WIDTH = { 1: 1.1, 2: 1.7, 3: 2.2, 4: 3.0, 5: 3.8 };
+  ctx.lineCap = "round";
+  [1, 2, 3, 4, 5].forEach(function (c) {
+    ctx.beginPath(); D.roads.forEach(function (r) { if (r[0] === c) poly(r.slice(1), false); });
+    ctx.strokeStyle = C.casing; ctx.lineWidth = (WIDTH[c] + 0.9) * sc; ctx.stroke();
+  });
+  [1, 2, 3, 4, 5].forEach(function (c) {
+    ctx.beginPath(); D.roads.forEach(function (r) { if (r[0] === c) poly(r.slice(1), false); });
+    ctx.strokeStyle = c >= 5 ? C.trunk : c >= 4 ? C.major : C.road; ctx.lineWidth = WIDTH[c] * sc; ctx.stroke();
+  });
+
+  ctx.globalAlpha = 1; ctx.drawImage(gc, 0, 0);
+
+  // Labels, placed only where they clear stations (radius 24) and each other.
+  var placed = [];
+  function clear(x0, y0, x1, y1) {
+    for (var s = 0; s < stations.length; s++) {
+      var p = stations[s], cx = Math.max(x0, Math.min(p[0], x1)), cy = Math.max(y0, Math.min(p[1], y1));
+      if (Math.hypot(cx - p[0], cy - p[1]) < 24) return false;
+    }
+    for (var k = 0; k < placed.length; k++) {
+      var q = placed[k];
+      if (x0 < q[2] + 6 && x1 > q[0] - 6 && y0 < q[3] + 4 && y1 > q[1] - 4) return false;
+    }
+    return x0 > 4 && y0 > 4 && x1 < D.W - 4 && y1 < D.H - 4;
+  }
+  function label(l, font, color, halo, upper) {
+    var text = upper ? l.t.toUpperCase() : l.t;
+    ctx.font = font.replace(/(\d+(\.\d+)?)px/, function (m, n) { return n * sc + "px"; });
+    var w = ctx.measureText(text).width / sc + (upper ? text.length * 1.2 : 0), h = parseFloat(font.match(/(\d+(\.\d+)?)px/)[1]);
+    var tries = [[0, 0], [0, 16], [0, -16], [22, 0], [-22, 0], [0, 30], [0, -30]];
+    for (var t = 0; t < tries.length; t++) {
+      var x = l.x + tries[t][0], y = l.y + tries[t][1];
+      if (!clear(x - w / 2, y - h / 2, x + w / 2, y + h / 2)) continue;
+      placed.push([x - w / 2, y - h / 2, x + w / 2, y + h / 2]);
+      ctx.save();
+      if (upper) ctx.letterSpacing = 1.2 * sc + "px";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineJoin = "round"; ctx.strokeStyle = halo; ctx.lineWidth = 3 * sc; ctx.strokeText(text, x * sc, y * sc);
+      ctx.fillStyle = color; ctx.fillText(text, x * sc, y * sc);
+      ctx.restore();
+      return true;
+    }
+    return false;
+  }
+  var L = D.labels.slice();
+  var rank = { suburb: 0, park: 1, quarter: 2, neighbourhood: 3 };
+  L.sort(function (a, b) { return rank[a.k] - rank[b.k] || (b.a || 0) - (a.a || 0); });
+  var seenNames = {};
+  L.forEach(function (l) {
+    if (seenNames[l.t]) return;
+    var ok = l.k === "park" ? label(l, "italic 600 11px Georgia, serif", C.park, "rgba(235,245,220,.9)", false)
+      : l.k === "suburb" ? label(l, "600 11px Georgia, serif", C.label, "rgba(245,240,228,.92)", true)
+      : label(l, "italic 500 9.5px Georgia, serif", "#8b7c68", "rgba(245,240,228,.9)", false);
+    if (ok) seenNames[l.t] = 1;
+  });
+  // River name along the Thames where there is room.
+  (opts.riverLabels || []).forEach(function (r) {
+    ctx.save(); ctx.translate(r.x * sc, r.y * sc); ctx.rotate(r.a);
+    ctx.font = "italic 600 " + 12 * sc + "px Georgia, serif"; ctx.letterSpacing = 2 * sc + "px";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.strokeStyle = "rgba(200,230,248,.9)"; ctx.lineWidth = 3 * sc; ctx.strokeText("River Thames", 0, 0);
+    ctx.fillStyle = C.river; ctx.fillText("River Thames", 0, 0);
+    ctx.restore();
+  });
+
+  // Soft vignette and the attribution required by the OpenStreetMap licence.
+  var vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, "rgba(90,70,40,0)"); vg.addColorStop(1, "rgba(90,70,40,.18)");
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  ctx.font = 9 * sc + "px system-ui, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+  ctx.fillStyle = "rgba(60,50,40,.75)"; ctx.fillText("Map data © OpenStreetMap contributors", W - 6 * sc, H - 4 * sc);
+  return cv.toDataURL("image/jpeg", opts.quality || 0.84);
+};
+document.title = "ready";
+</script>
+</body></html>

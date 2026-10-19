@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b2231">
+<title>Fog Yard: Hunt Mr. X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ece6d6; --panel:#f8f4ea; --ink:#1b2231; --muted:#6a6f7b; --line:#d3c9b0;
+  --brass:#a87a1c; --brass-ink:#fff;
+  --taxi:#d9a514; --bus:#2f8f5b; --ug:#c4382c; --black:#1b2231;
+  --d0:#2563eb; --d1:#db2777; --d2:#7c3aed; --d3:#ea580c;
+  --shadow:0 -6px 24px rgba(0,0,0,.08);
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1420; --panel:#151f31; --ink:#e9e4d4; --muted:#8f97a8; --line:#27344c;
+    --brass:#d6ac4a; --brass-ink:#1b1405;
+    --taxi:#f0bd2a; --bus:#43b878; --ug:#ef5a4b; --black:#e9e4d4;
+    --shadow:0 -6px 24px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1420; --panel:#151f31; --ink:#e9e4d4; --muted:#8f97a8; --line:#27344c;
+  --brass:#d6ac4a; --brass-ink:#1b1405;
+  --taxi:#f0bd2a; --bus:#43b878; --ug:#ef5a4b; --black:#e9e4d4;
+  --shadow:0 -6px 24px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;touch-action:manipulation}
+.hidden{display:none!important}
+h1,h2,.disp{font-family:"Oswald","Arial Narrow",Impact,sans-serif;font-weight:700;letter-spacing:.02em}
+button{font:inherit;color:inherit;cursor:pointer}
+
+#menu,#online{height:100%;display:flex;flex-direction:column;padding:24px 22px;max-width:520px;margin:0 auto;gap:16px;overflow-y:auto}
+#menu{justify-content:center}
+#menu h1{font-size:54px;line-height:.95;margin:0}
+#menu .tag{color:var(--muted);font-size:16px;line-height:1.45;margin:0;max-width:34ch}
+.role{display:block;width:100%;text-align:left;padding:16px 18px;border:2px solid var(--ink);background:var(--panel);border-radius:6px}
+.role b{display:block;font-family:"Oswald",sans-serif;font-size:22px;letter-spacing:.02em;margin-bottom:2px}
+.role span{color:var(--muted);font-size:14px;line-height:1.4}
+.role:active{background:var(--brass);color:var(--brass-ink)}
+.role:active span{color:inherit}
+.role:disabled{opacity:.45}
+.linkbtn{background:none;border:none;color:var(--muted);text-decoration:underline;padding:6px;align-self:flex-start;font-size:14px}
+#online h2{margin:0;font-size:32px}
+.note{color:var(--muted);font-size:13.5px;line-height:1.5;margin:0}
+.txt{width:100%;font-size:17px;padding:11px 12px;border:2px solid var(--ink);border-radius:6px;background:var(--panel);color:var(--ink)}
+.joinrow{display:flex;gap:8px}
+.joinrow input{width:128px;flex:none;font-size:22px;font-family:"Oswald",sans-serif;letter-spacing:.3em;text-transform:uppercase;text-align:center;padding:10px 0 10px .3em;border:2px solid var(--ink);border-radius:6px;background:var(--panel);color:var(--ink)}
+.joinrow .btn{flex:1}
+.codebig{font-family:"Oswald",sans-serif;font-size:64px;letter-spacing:.18em;text-align:center;border:2px dashed var(--brass);border-radius:8px;padding:6px 0 2px .18em;line-height:1.1}
+.plist{display:flex;flex-direction:column;gap:6px}
+.pl{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--line);border-radius:6px;background:var(--panel);font-size:15px}
+.pl .who{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl .rl{font-weight:700;font-size:13px;color:var(--brass)}
+
+#game{height:100%;display:flex;flex-direction:column}
+#top{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+#top .ttl{flex:1;text-align:center;line-height:1.1}
+#top .ttl .r{font-family:"Oswald",sans-serif;font-size:18px;font-weight:700}
+#top .ttl .t{font-size:12px;color:var(--muted)}
+.ib{width:38px;height:38px;border:1.5px solid var(--line);background:var(--panel);border-radius:50%;font-size:16px;font-weight:700}
+#logwrap{overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-width:none}
+#logwrap::-webkit-scrollbar{display:none}
+#log{display:flex;gap:4px;padding:6px 10px;width:max-content}
+.lc{width:36px;height:52px;border:1.5px solid var(--line);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3px 0;background:var(--panel);font-size:10px;color:var(--muted)}
+.lc.rev{border-color:var(--brass);border-width:2px}
+.lc.cur{outline:2px solid var(--ink);outline-offset:1px}
+.lc .tk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px}
+.lc .tk.e{background:transparent;border:1.5px dashed var(--line);color:var(--line)}
+.lc .p{font-weight:700;color:var(--ink);font-size:11px;min-height:12px}
+.lc .n{font-size:9px}
+.lc .d{font-size:8px;color:var(--brass);font-weight:700;line-height:1}
+
+#mapwrap{flex:1;min-height:0;background:#6fa24a;position:relative;overflow:hidden}
+#map{width:100%;height:100%;display:block;touch-action:none;user-select:none;-webkit-user-select:none}
+#map .nd{fill:#fffaf0;stroke:#1b2231;stroke-width:1.6}
+#map .nn{font-size:9.5px;font-weight:700;fill:#1b2231;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+#map .legal{fill:none;stroke:#fff3a8;stroke-width:3.6;animation:pulse 1.1s ease-in-out infinite}
+#map .selr{fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:4 3}
+#map .hint{fill:rgba(255,255,255,.28);stroke:#ff5db1;stroke-width:2;stroke-dasharray:3 3}
+#map .ghost{fill:none;stroke:#fff;stroke-width:2.6;stroke-dasharray:5 3}
+#map .gl{font-size:10px;font-weight:700;fill:#fff;stroke:#1b2231;stroke-width:3;paint-order:stroke;text-anchor:middle;dominant-baseline:central}
+#map .tag{fill:#f4eee0;stroke:#8d8470;stroke-width:1}
+#map .tagt{font-size:8.5px;fill:#4a4535;text-anchor:middle;dominant-baseline:central;font-weight:600}
+#map .tok{transition:transform .45s cubic-bezier(.3,.7,.3,1);pointer-events:none}
+#map .tt{font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){#map .legal{animation:none}#map .tok{transition:none}}
+#zoom{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
+#zoom button{width:36px;height:36px;border-radius:8px;border:1.5px solid rgba(27,34,49,.7);background:rgba(248,244,234,.92);color:#1b2231;font-size:18px;font-weight:700;line-height:1}
+#painting{position:absolute;left:10px;bottom:8px;font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+
+#msg{padding:8px 14px;font-size:14px;min-height:38px;display:flex;align-items:center;border-top:1px solid var(--line);background:var(--panel);line-height:1.3}
+#panel{background:var(--panel);box-shadow:var(--shadow);padding:8px 10px 12px;display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1.5px solid var(--line);border-radius:999px;font-size:13px;font-weight:600;background:transparent}
+.chip .dot{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:700}
+.chip.sel{border-color:var(--ink);background:var(--bg)}
+.chip.done{opacity:.45}
+.chip.other{opacity:.7;border-style:dashed}
+.row{display:flex;gap:8px;align-items:center}
+.btn{padding:10px 14px;border-radius:6px;border:2px solid var(--ink);background:var(--panel);font-weight:700;font-size:14px}
+.btn.pri{background:var(--ink);color:var(--bg)}
+.btn.on{background:var(--brass);border-color:var(--brass);color:var(--brass-ink)}
+.btn:disabled{opacity:.4}
+.grow{flex:1}
+
+#sheet,#overlay{position:fixed;inset:0;background:rgba(5,8,14,.55);display:flex;z-index:20}
+#sheet{align-items:flex-end}
+#overlay{align-items:center;justify-content:center;padding:20px}
+.card{background:var(--panel);width:100%;max-width:480px;margin:0 auto;border-radius:12px 12px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px}
+#overlay .card{border-radius:12px;max-height:88%;overflow-y:auto;padding-bottom:18px}
+.card h2{margin:0;font-size:26px}
+.card p,.card li{font-size:14.5px;line-height:1.5;margin:0}
+.card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:2px solid var(--ink);border-radius:6px;background:var(--bg);font-weight:700;font-size:16px;text-align:left}
+.opt .dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px}
+.opt small{margin-left:auto;color:var(--muted);font-weight:600;font-size:13px}
+.leg{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
+.leg i{display:inline-block;width:18px;height:4px;vertical-align:middle;margin-right:5px;border-radius:2px}
+</style>
+</head>
+<body>
+
+<section id="menu">
+  <h1 class="disp">Fog<br>Yard</h1>
+  <p class="tag">One fugitive. Four detectives. Twenty rounds across forest, river and mountain, and he only shows his face five times.</p>
+  <button class="role" id="playOnline"><b>Play online with friends</b><span>Host a game as Mr. X, or join a friend’s game with a 4-letter code.</span></button>
+  <button class="role" id="playDet"><b>Solo: play the detectives</b><span>The computer plays Mr. X.</span></button>
+  <button class="role" id="playX"><b>Solo: play Mr. X</b><span>The computer plays four detectives.</span></button>
+  <button class="linkbtn" id="menuHelp">How to play</button>
+</section>
+
+<section id="online" class="hidden">
+  <button class="linkbtn" id="olBack">Back</button>
+  <h2 class="disp" id="olTitle">Play online</h2>
+  <div id="olHome" style="display:flex;flex-direction:column;gap:14px">
+    <button class="role" id="olHost"><b>Host a game</b><span>You play Mr. X. Friends join with your code and hunt you.</span></button>
+    <input class="txt" id="olName" maxlength="14" placeholder="Your name (for joining)" autocomplete="off" aria-label="Your name">
+    <div class="joinrow"><input id="olCode" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code"><button class="btn pri" id="olJoin">Join as detective</button></div>
+    <button class="btn hidden" id="olResume"></button>
+    <p class="note" id="olNote"></p>
+  </div>
+  <div id="olLobby" class="hidden" style="display:flex;flex-direction:column;gap:14px">
+    <div class="codebig" id="olCodeShow"></div>
+    <button class="btn" id="olShare">Share invite</button>
+    <div class="plist" id="olPlayers"></div>
+    <p class="note" id="olStatus"></p>
+    <button class="btn pri" id="olStart">Start game</button>
+  </div>
+</section>
+
+<section id="game" class="hidden">
+  <div id="top">
+    <button class="ib" id="btnMenu" aria-label="Menu">&#9776;</button>
+    <div class="ttl"><div class="r" id="rInfo"></div><div class="t" id="tInfo"></div></div>
+    <button class="ib" id="btnHelp" aria-label="Help">?</button>
+  </div>
+  <div id="logwrap"><div id="log"></div></div>
+  <div id="mapwrap">
+    <svg id="map" viewBox="34 50 452 517" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="zoom"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">&minus;</button><button id="zFit" aria-label="Reset view">&#8962;</button></div>
+    <div id="painting">Painting the map&hellip;</div>
+  </div>
+  <div id="msg"></div>
+  <div id="panel"></div>
+</section>
+
+<div id="sheet" class="hidden"><div class="card" id="sheetCard"></div></div>
+<div id="overlay" class="hidden"><div class="card" id="overlayCard"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ================= Board graph (deterministic) ================= */
+var ROWS=8, COLS=7, GX0=70, GY0=88, SP=63, NN=ROWS*COLS, MAXR=20, REVEALS=[3,7,11,15,20];
+var TW=520, TH=640;
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+var mr=mulberry(1905);
+function nid(r,c){return r*COLS+c+1}
+var UGSET={"1,1":1,"1,5":1,"3,3":1,"5,1":1,"5,5":1,"7,3":1};
+var nodes=[null];
+for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+  nodes.push({id:nid(r,c),r:r,c:c,x:GX0+c*SP+(mr()-.5)*8,y:GY0+r*SP+(mr()-.5)*8,bus:(r%2===1&&c%2===1),ug:!!UGSET[r+","+c]});
+}
+var adj={taxi:[],bus:[],ug:[]}, edges=[];
+Object.keys(adj).forEach(function(k){for(var i=0;i<=NN;i++)adj[k][i]=[]});
+function addEdge(t,a,b){if(adj[t][a].indexOf(b)>=0)return;adj[t][a].push(b);adj[t][b].push(a);edges.push({a:a,b:b,t:t})}
+function connected(list){
+  var a=[];for(var i=0;i<=NN;i++)a.push([]);
+  list.forEach(function(e){a[e[0]].push(e[1]);a[e[1]].push(e[0])});
+  var seen={1:1},q=[1],cnt=1;
+  while(q.length){var u=q.pop();a[u].forEach(function(v){if(!seen[v]){seen[v]=1;cnt++;q.push(v)}})}
+  return cnt===NN;
+}
+var orth=[];
+for(r=0;r<ROWS;r++)for(c=0;c<COLS;c++){
+  if(c<COLS-1)orth.push([nid(r,c),nid(r,c+1)]);
+  if(r<ROWS-1)orth.push([nid(r,c),nid(r+1,c)]);
+}
+var keep=orth.slice();
+orth.forEach(function(e){
+  if(mr()<0.22){var t=keep.filter(function(x){return x!==e});if(connected(t))keep=t}
+});
+keep.forEach(function(e){addEdge("taxi",e[0],e[1])});
+for(r=0;r<ROWS-1;r++)for(c=0;c<COLS;c++){
+  if(mr()<0.2){
+    var goRight=(c===0)||(c<COLS-1&&mr()<.5);
+    addEdge("taxi",nid(r,c),nid(r+1,goRight?c+1:c-1));
+  }
+}
+[1,3,5].forEach(function(r){[1,3,5].forEach(function(c){
+  if(c+2<=5)addEdge("bus",nid(r,c),nid(r,c+2));
+  if(r+2<=7)addEdge("bus",nid(r,c),nid(r+2,c));
+})});
+[1,3,5].forEach(function(r){[1,3].forEach(function(c){
+  if(mr()<0.45){
+    if(mr()<.5)addEdge("bus",nid(r,c),nid(r+2,c+2));else addEdge("bus",nid(r,c+2),nid(r+2,c));
+  }
+})});
+[[1,1,3,3],[1,5,3,3],[3,3,5,1],[3,3,5,5],[5,1,7,3],[5,5,7,3],[1,1,1,5],[5,1,5,5]].forEach(function(e){
+  addEdge("ug",nid(e[0],e[1]),nid(e[2],e[3]));
+});
+var allAdj=[];
+for(var i=0;i<=NN;i++){
+  var s={};["taxi","bus","ug"].forEach(function(k){adj[k][i].forEach(function(n){s[n]=1})});
+  allAdj.push(Object.keys(s).map(Number));
+}
+var dist=[];
+for(i=0;i<=NN;i++){
+  var d=new Array(NN+1).fill(99);
+  if(i>0){d[i]=0;var q=[i];for(var h=0;h<q.length;h++){var u=q[h];allAdj[u].forEach(function(v){if(d[v]===99){d[v]=d[u]+1;q.push(v)}})}}
+  dist.push(d);
+}
+
+/* ================= Constants & globals ================= */
+var TK={taxi:{name:"Taxi",sh:"T",col:"var(--taxi)"},bus:{name:"Bus",sh:"B",col:"var(--bus)"},ug:{name:"Underground",sh:"U",col:"var(--ug)"},black:{name:"Black",sh:"\u25CF",col:"var(--black)"}};
+var DCOL=["var(--d0)","var(--d1)","var(--d2)","var(--d3)"];
+var MAPC={taxi:"#f6c431",bus:"#3ddb86",ug:"#ee4a3d"};
+var $=function(s){return document.querySelector(s)};
+var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms)})};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+var S=null, OL=null;
+
+/* ================= Terrain painter (procedural, painted once) ================= */
+function makeNoise(seed){
+  var rnd=mulberry(seed),g=new Float32Array(65536);
+  for(var i=0;i<65536;i++)g[i]=rnd();
+  return function(x,y){
+    var xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+    var a=g[((yi&255)<<8)|(xi&255)],b=g[((yi&255)<<8)|((xi+1)&255)],c=g[(((yi+1)&255)<<8)|(xi&255)],d=g[(((yi+1)&255)<<8)|((xi+1)&255)];
+    var u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+    return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+  };
+}
+function fbm(n,x,y,o){var a=0,amp=.5,f=1,s=0;for(var i=0;i<o;i++){a+=amp*n(x*f,y*f);s+=amp;amp*=.5;f*=2}return a/s}
+function colMid(c){return GX0+SP*c+SP/2}
+function rowMid(r){return GY0+SP*r+SP/2}
+function riverPoints(){
+  var p=[[-30,rowMid(0)],[colMid(0),rowMid(0)],[colMid(0),rowMid(3)],[colMid(2),rowMid(3)],[colMid(2),rowMid(6)],[colMid(4),rowMid(6)],[colMid(4),594],[452,606]];
+  for(var it=0;it<4;it++){
+    var q=[p[0]];
+    for(var i=0;i<p.length-1;i++){
+      var a=p[i],b=p[i+1];
+      q.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25]);
+      q.push([a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75]);
+    }
+    q.push(p[p.length-1]);p=q;
+  }
+  return p.map(function(pt,i){return [pt[0]+Math.sin(i*.9)*2,pt[1]+Math.cos(i*.7)*2]});
+}
+var MOUNTS=[
+  {cx:235,by:72,w:72,h:42,s:11},
+  {cx:40,by:70,w:110,h:78,s:3},{cx:115,by:74,w:120,h:96,s:4},{cx:172,by:68,w:84,h:56,s:5},
+  {cx:300,by:70,w:100,h:62,s:6},{cx:372,by:74,w:130,h:94,s:7},{cx:436,by:68,w:84,h:54,s:8},
+  {cx:520,by:340,w:110,h:92,s:9},{cx:522,by:440,w:116,h:140,s:10},
+  {cx:14,by:632,w:100,h:56,s:12}
+];
+var LAKES=[{x:494,y:628,r:64,s:1},{x:498,y:34,r:30,s:2}];
+function inMountain(x,y){
+  for(var i=0;i<MOUNTS.length;i++){var m=MOUNTS[i];
+    if(y<=m.by+4&&y>=m.by-m.h-2){var t=(m.by-y)/m.h,half=m.w*.5*(1-t)*1.05;if(Math.abs(x-m.cx)<half+4)return true}}
+  return false;
+}
+function blobPath(ctx,cx,cy,r,seed){
+  var rnd=mulberry(seed*13+5),n=44,off=[];
+  for(var i=0;i<n;i++)off.push(rnd());
+  ctx.beginPath();
+  for(i=0;i<=n;i++){
+    var k=i%n,a=k/n*Math.PI*2,s1=(off[k]*.5+off[(k+1)%n]*.5),rr=r*(0.86+0.28*s1);
+    var x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr*.9;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+function tri(ctx,x1,y1,x2,y2,x3,y3){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.closePath();ctx.fill()}
+function drawConifer(ctx,x,y,s){
+  var h=17*s,w=8.5*s;
+  ctx.fillStyle="rgba(8,40,20,.24)";ctx.beginPath();ctx.ellipse(x+w*.55,y+.5,w*.85,w*.26,0,0,6.283);ctx.fill();
+  ctx.fillStyle="#5a3d26";ctx.fillRect(x-.7*s,y-2.4*s,1.4*s,2.6*s);
+  for(var i=0;i<3;i++){
+    var ty=y-2.2*s-i*h*.27,tw=w*(1-i*.22),th=h*.5;
+    ctx.fillStyle="#2a5f45";tri(ctx,x,ty-th,x-tw/2,ty,x+tw/2,ty);
+    ctx.fillStyle="#3f8c66";tri(ctx,x,ty-th,x-tw/2,ty,x+tw*.04,ty);
+  }
+}
+function drawBroad(ctx,x,y,s,pal){
+  var r=5.6*s;
+  ctx.fillStyle="rgba(8,40,20,.22)";ctx.beginPath();ctx.ellipse(x+r*.6,y+.5,r*1.1,r*.34,0,0,6.283);ctx.fill();
+  ctx.fillStyle="#5a3d26";ctx.fillRect(x-.8*s,y-3.2*s,1.6*s,3.4*s);
+  ctx.fillStyle=pal[0];
+  [[-.5,-1.7,.8],[.5,-1.8,.8],[0,-2.45,.92],[0,-1.4,.9]].forEach(function(c){ctx.beginPath();ctx.arc(x+c[0]*r,y+c[1]*r,c[2]*r,0,6.283);ctx.fill()});
+  ctx.fillStyle=pal[1];
+  [[-.62,-1.95,.5],[.1,-2.65,.55],[-.2,-1.5,.45]].forEach(function(c){ctx.beginPath();ctx.arc(x+c[0]*r,y+c[1]*r,c[2]*r,0,6.283);ctx.fill()});
+}
+function drawMountain(ctx,m){
+  var cx=m.cx,by=m.by,w=m.w,h=m.h,r=mulberry(m.s*97+1);
+  var px=cx+(r()-.5)*w*.12,py=by-h;
+  var A=[cx-w/2,by],B=[cx+w/2,by],M=[px+w*.07,by];
+  function ridge(f,t,n){var p=[];for(var i=1;i<n;i++){var k=i/n;p.push([f[0]+(t[0]-f[0])*k+(r()-.5)*w*.07,f[1]+(t[1]-f[1])*k+(r()-.5)*h*.07])}return p}
+  var Lr=ridge(A,[px,py],5),Rr=ridge([px,py],B,5);
+  function path(){ctx.beginPath();ctx.moveTo(A[0],A[1]);Lr.forEach(function(p){ctx.lineTo(p[0],p[1])});ctx.lineTo(px,py);Rr.forEach(function(p){ctx.lineTo(p[0],p[1])});ctx.lineTo(B[0],B[1]);ctx.closePath()}
+  ctx.fillStyle="rgba(40,80,35,.35)";ctx.beginPath();ctx.ellipse(cx,by+2,w*.62,h*.14,0,0,6.283);ctx.fill();
+  ctx.save();path();ctx.clip();
+  var gl=ctx.createLinearGradient(0,py,0,by);gl.addColorStop(0,"#d3c6b0");gl.addColorStop(.6,"#a28d72");gl.addColorStop(1,"#7f6c55");
+  ctx.fillStyle=gl;ctx.fillRect(cx-w,py-6,w*2,h+12);
+  var y0=py+h*.48;
+  ctx.fillStyle="#f7f9fc";ctx.beginPath();ctx.moveTo(cx-w,py-8);ctx.lineTo(cx+w,py-8);
+  for(var x=cx+w;x>=cx-w;x-=w/10)ctx.lineTo(x,y0+(r()-.5)*h*.2+Math.abs(x-px)*.55);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle="rgba(70,52,38,.28)";ctx.lineWidth=1;
+  for(var i=0;i<4;i++){ctx.beginPath();ctx.moveTo(px+(r()-.5)*w*.08,py+h*.08);ctx.lineTo(cx+(r()-.5)*w*.9,by);ctx.stroke()}
+  ctx.fillStyle="rgba(40,48,78,.4)";ctx.beginPath();ctx.moveTo(px,py-8);ctx.lineTo(M[0],M[1]+2);ctx.lineTo(B[0]+6,B[1]+2);ctx.lineTo(px+w,py-10);ctx.closePath();ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle="rgba(60,45,35,.45)";ctx.lineWidth=1;path();ctx.stroke();
+}
+function distSeg(px,py,ax,ay,bx,by){
+  var dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy,t=l?((px-ax)*dx+(py-ay)*dy)/l:0;t=Math.max(0,Math.min(1,t));
+  var qx=ax+t*dx-px,qy=ay+t*dy-py;return Math.sqrt(qx*qx+qy*qy);
+}
+function paintTerrain(done){
+  var SC=2,cv=document.createElement("canvas");cv.width=TW*SC;cv.height=TH*SC;
+  var ctx=cv.getContext("2d");
+  var n1=makeNoise(31),n2=makeNoise(57),n3=makeNoise(91);
+  var rp=riverPoints();
+  function forest(x,y){
+    var m=fbm(n2,x*.013,y*.013,3);
+    m+=.3*Math.max(0,(170-x)/170)+.12*Math.max(0,(y-430)/210)*Math.max(0,(280-x)/280);
+    return m;
+  }
+  // 1) rolling hills: height field, hill shading, grass colour
+  var hc=document.createElement("canvas");hc.width=TW;hc.height=TH;
+  var hx=hc.getContext("2d"),img=hx.createImageData(TW,TH),dat=img.data,H=new Float32Array(TW*TH),x,y;
+  for(y=0;y<TH;y++)for(x=0;x<TW;x++)H[y*TW+x]=fbm(n1,x*.009,y*.009,3)*.85+fbm(n3,x*.03,y*.03,2)*.15;
+  for(y=0;y<TH;y++)for(x=0;x<TW;x++){
+    var i=y*TW+x,xm=H[y*TW+Math.max(0,x-1)],xp=H[y*TW+Math.min(TW-1,x+1)],ym=H[Math.max(0,y-1)*TW+x],yp=H[Math.min(TH-1,y+1)*TW+x];
+    var sh=Math.max(-.22,Math.min(.22,((xm-xp)+(ym-yp))*9));
+    var t=Math.min(1,Math.max(0,(H[i]-.3)/.42)),fm=Math.max(0,Math.min(1,(forest(x,y)-.5)*2));
+    var m=(1+sh)*(1-.13*fm),gr=(n3(x*.9,y*.9)-.5)*14;
+    dat[i*4]=Math.max(0,Math.min(255,(86+92*t)*m+gr));
+    dat[i*4+1]=Math.max(0,Math.min(255,(160+46*t)*m+gr));
+    dat[i*4+2]=Math.max(0,Math.min(255,(56+44*t)*m+gr*.6));
+    dat[i*4+3]=255;
+  }
+  hx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(hc,0,0,TW*SC,TH*SC);
+  ctx.save();ctx.scale(SC,SC);
+  // 2) dirt clearings
+  [[468,262,36,20,1],[26,478,30,17,2],[302,588,34,14,3],[150,612,28,12,4],[300,36,26,12,5]].forEach(function(p){
+    blobPath(ctx,p[0],p[1],p[2],p[4]);ctx.fillStyle="rgba(216,182,118,.92)";ctx.fill();
+    ctx.lineWidth=1.4;ctx.strokeStyle="rgba(176,138,82,.8)";ctx.stroke();
+  });
+  // 3) lakes with sandy shore
+  LAKES.forEach(function(l){
+    blobPath(ctx,l.x,l.y,l.r+8,l.s);ctx.fillStyle="#e2c78e";ctx.fill();
+    blobPath(ctx,l.x,l.y,l.r,l.s);
+    var g=ctx.createLinearGradient(l.x-l.r,l.y-l.r,l.x+l.r,l.y+l.r);g.addColorStop(0,"#79c6ea");g.addColorStop(1,"#3f9bd0");
+    ctx.fillStyle=g;ctx.fill();ctx.lineWidth=2;ctx.strokeStyle="rgba(255,255,255,.45)";ctx.stroke();
+  });
+  // 4) river: banks, water, highlight
+  function strokeRiver(w0,w1,col,alpha){
+    ctx.strokeStyle=col;ctx.globalAlpha=alpha;ctx.lineCap="round";
+    for(var i=0;i<rp.length-1;i++){
+      ctx.lineWidth=w0+(w1-w0)*(i/(rp.length-1));
+      ctx.beginPath();ctx.moveTo(rp[i][0],rp[i][1]);ctx.lineTo(rp[i+1][0],rp[i+1][1]);ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+  strokeRiver(16,24,"#dcc48e",.75);strokeRiver(10,17,"#4ea7d8",1);strokeRiver(4,8,"#9bd8f2",.7);
+  // 5) mountains
+  MOUNTS.forEach(function(m){drawMountain(ctx,m)});
+  // 6) trees, placed away from stations, routes, water and peaks
+  var segs=edges.map(function(e){return [nodes[e.a].x,nodes[e.a].y,nodes[e.b].x,nodes[e.b].y]});
+  var rnd=mulberry(404),trees=[];
+  for(var k=0;k<4600;k++){
+    var tx=rnd()*TW,ty=rnd()*TH,fm2=forest(tx,ty),p=fm2>.52?.92:(fm2>.46?.22:.03);
+    var roll=rnd(),pick=rnd(),sz=.8+rnd()*.5,pal=rnd();
+    if(roll>p)continue;
+    if(inMountain(tx,ty))continue;
+    var bad=false,j;
+    for(j=0;j<LAKES.length&&!bad;j++){var L=LAKES[j];if(Math.hypot(tx-L.x,(ty-L.y)/.9)<L.r+12)bad=true}
+    for(j=0;j<rp.length&&!bad;j++){if(Math.hypot(tx-rp[j][0],ty-rp[j][1])<14)bad=true}
+    for(j=1;j<=NN&&!bad;j++){if(Math.hypot(tx-nodes[j].x,ty-nodes[j].y)<25)bad=true}
+    for(j=0;j<segs.length&&!bad;j++){if(distSeg(tx,ty,segs[j][0],segs[j][1],segs[j][2],segs[j][3])<9)bad=true}
+    if(bad)continue;
+    trees.push({x:tx,y:ty,s:sz,c:pick<.66?0:1,p:pal});
+  }
+  trees.sort(function(a,b){return a.y-b.y});
+  var PALS=[["#2f7d58","#4fa376"],["#6f9a3a","#9cc455"],["#4c9a3c","#7bc152"]],AUT=[["#d4a92f","#ecd05a"],["#cf7a29","#eba04f"]];
+  trees.forEach(function(t){
+    if(t.c===0)drawConifer(ctx,t.x,t.y,t.s);
+    else if(t.p>.94)drawBroad(ctx,t.x,t.y,t.s,AUT[t.p>.97?1:0]);
+    else drawBroad(ctx,t.x,t.y,t.s,PALS[Math.floor(t.p*3)%3]);
+  });
+  ctx.restore();
+  // 7) soft vignette for a tabletop-diorama feel
+  var vg=ctx.createRadialGradient(cv.width/2,cv.height/2,cv.height*.28,cv.width/2,cv.height/2,cv.height*.72);
+  vg.addColorStop(0,"rgba(10,30,10,0)");vg.addColorStop(1,"rgba(10,30,10,.28)");
+  ctx.fillStyle=vg;ctx.fillRect(0,0,cv.width,cv.height);
+  if(cv.toBlob)cv.toBlob(function(b){done(b?URL.createObjectURL(b):cv.toDataURL("image/jpeg",.9))},"image/jpeg",.9);
+  else done(cv.toDataURL("image/jpeg",.9));
+}
+
+/* ================= Map SVG, zoom & pan ================= */
+var DEF={x:34,y:50,w:452,h:517},VB={x:34,y:50,w:452,h:517},ASPECT=DEF.h/DEF.w;
+var svgEl=null;
+function curvePath(a,b,peak){
+  var A=nodes[a],B=nodes[b];
+  if(!peak)return "M"+A.x+" "+A.y+" L"+B.x+" "+B.y;
+  var mx=(A.x+B.x)/2,my=(A.y+B.y)/2,dx=B.x-A.x,dy=B.y-A.y,len=Math.sqrt(dx*dx+dy*dy);
+  var cx=mx+(-dy/len)*peak*2,cy=my+(dx/len)*peak*2;
+  return "M"+A.x+" "+A.y+" Q"+cx+" "+cy+" "+B.x+" "+B.y;
+}
+function buildMap(){
+  var svg=svgEl=$("#map"),h="";
+  h+='<rect x="0" y="0" width="'+TW+'" height="'+TH+'" fill="#78ad4c"/><image id="terrain" x="0" y="0" width="'+TW+'" height="'+TH+'" preserveAspectRatio="none"/>';
+  [["Highmoor",112,56],["Greyfell",372,58],["Lowfen",120,606],["Reedwater",300,609]].forEach(function(t){
+    var w=t[0].length*5.4+12;
+    h+='<g><rect class="tag" x="'+(t[1]-w/2)+'" y="'+(t[2]-8)+'" width="'+w+'" height="16" rx="2"/><text class="tagt" x="'+t[1]+'" y="'+t[2]+'">'+t[0]+'</text></g>';
+  });
+  var order=["taxi","bus","ug"],pk={taxi:0,bus:12,ug:-15},wd={taxi:3.2,bus:3.6,ug:4};
+  order.forEach(function(t){edges.filter(function(e){return e.t===t}).forEach(function(e){
+    h+='<path d="'+curvePath(e.a,e.b,pk[t])+'" fill="none" stroke="rgba(20,28,18,.62)" stroke-width="'+(wd[t]+3.2)+'" stroke-linecap="round"/>';
+  })});
+  order.forEach(function(t){edges.filter(function(e){return e.t===t}).forEach(function(e){
+    h+='<path d="'+curvePath(e.a,e.b,pk[t])+'" fill="none" stroke="'+MAPC[t]+'" stroke-width="'+wd[t]+'" stroke-linecap="round"'+(t==="ug"?' stroke-dasharray="8 4"':'')+'/>';
+  })});
+  for(var i=1;i<=NN;i++){
+    var n=nodes[i];
+    if(n.ug)h+='<circle cx="'+n.x+'" cy="'+n.y+'" r="19" fill="none" stroke="rgba(20,28,18,.62)" stroke-width="6.4"/><circle cx="'+n.x+'" cy="'+n.y+'" r="19" fill="none" stroke="'+MAPC.ug+'" stroke-width="3.4"/>';
+    if(n.bus)h+='<circle cx="'+n.x+'" cy="'+n.y+'" r="15" fill="none" stroke="rgba(20,28,18,.62)" stroke-width="6.4"/><circle cx="'+n.x+'" cy="'+n.y+'" r="15" fill="none" stroke="'+MAPC.bus+'" stroke-width="3.4"/>';
+    h+='<circle class="nd" cx="'+n.x+'" cy="'+n.y+'" r="11"/><text class="nn" x="'+n.x+'" y="'+n.y+'">'+i+'</text>';
+  }
+  h+='<g id="dyn"></g><g id="toks">';
+  for(i=0;i<4;i++)h+='<g class="tok" id="tok'+i+'"><circle r="13" fill="'+DCOL[i]+'" stroke="#fff" stroke-width="2.5"/><text class="tt">D'+(i+1)+'</text></g>';
+  h+='<g class="tok" id="tokx"><circle r="14" fill="#111" stroke="#e0b341" stroke-width="3"/><text class="tt" style="fill:#e0b341">X</text></g></g><g id="hits">';
+  for(i=1;i<=NN;i++)h+='<circle data-n="'+i+'" cx="'+nodes[i].x+'" cy="'+nodes[i].y+'" r="22" fill="transparent"/>';
+  h+='</g>';
+  svg.innerHTML=h;
+  setupGestures(svg);
+  setTimeout(function(){
+    try{paintTerrain(function(url){$("#terrain").setAttribute("href",url);$("#painting").classList.add("hidden")})}
+    catch(e){$("#painting").classList.add("hidden")}
+  },60);
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function applyVB(){
+  VB.w=clamp(VB.w,170,TW);VB.h=VB.w*ASPECT;
+  VB.x=clamp(VB.x,0,TW-VB.w);VB.y=clamp(VB.y,0,TH-VB.h);
+  svgEl.setAttribute("viewBox",VB.x.toFixed(2)+" "+VB.y.toFixed(2)+" "+VB.w.toFixed(2)+" "+VB.h.toFixed(2));
+}
+function resetView(){VB={x:DEF.x,y:DEF.y,w:DEF.w,h:DEF.h};applyVB()}
+function geom(){
+  var r=svgEl.getBoundingClientRect(),sc=Math.min(r.width/VB.w,r.height/VB.h);
+  return {r:r,sc:sc,ox:(r.width-VB.w*sc)/2,oy:(r.height-VB.h*sc)/2};
+}
+function toUser(cx,cy){var g=geom();return {x:VB.x+(cx-g.r.left-g.ox)/g.sc,y:VB.y+(cy-g.r.top-g.oy)/g.sc}}
+function zoomAt(cx,cy,newW){
+  var u=toUser(cx,cy);VB.w=clamp(newW,170,TW);VB.h=VB.w*ASPECT;
+  var g=geom();
+  VB.x=u.x-(cx-g.r.left-g.ox)/g.sc;VB.y=u.y-(cy-g.r.top-g.oy)/g.sc;applyVB();
+}
+function focusOn(pos){
+  if(VB.w>=DEF.w-1)return;
+  VB.x=nodes[pos].x-VB.w/2;VB.y=nodes[pos].y-VB.h/2;applyVB();
+}
+var dragged=false;
+function setupGestures(svg){
+  var ptrs={},pinch=null;
+  svg.addEventListener("pointerdown",function(e){
+    ptrs[e.pointerId]={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY};
+    var ids=Object.keys(ptrs);
+    if(ids.length===1)dragged=false;
+    if(ids.length===2){
+      var a=ptrs[ids[0]],b=ptrs[ids[1]];
+      pinch={d:Math.hypot(a.x-b.x,a.y-b.y),w:VB.w};dragged=true;
+    }
+  });
+  svg.addEventListener("pointermove",function(e){
+    var p=ptrs[e.pointerId];if(!p)return;
+    var ids=Object.keys(ptrs);
+    if(ids.length===1){
+      var dx=e.clientX-p.x,dy=e.clientY-p.y;
+      if(!dragged&&Math.hypot(e.clientX-p.sx,e.clientY-p.sy)>8)dragged=true;
+      if(dragged){var g=geom();VB.x-=dx/g.sc;VB.y-=dy/g.sc;applyVB()}
+      p.x=e.clientX;p.y=e.clientY;
+    }else if(ids.length===2&&pinch){
+      p.x=e.clientX;p.y=e.clientY;
+      var a=ptrs[ids[0]],b=ptrs[ids[1]],d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d>10)zoomAt((a.x+b.x)/2,(a.y+b.y)/2,pinch.w*pinch.d/d);
+    }
+  });
+  function up(e){delete ptrs[e.pointerId];if(Object.keys(ptrs).length<2)pinch=null}
+  svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);svg.addEventListener("pointerleave",up);
+  svg.addEventListener("wheel",function(e){e.preventDefault();zoomAt(e.clientX,e.clientY,VB.w*(e.deltaY>0?1.12:.89))},{passive:false});
+  svg.addEventListener("click",function(ev){
+    if(dragged){dragged=false;return}
+    var t=ev.target.closest&&ev.target.closest("[data-n]");
+    if(t)onTap(+t.getAttribute("data-n"));
+  });
+  $("#zIn").onclick=function(){var r=svg.getBoundingClientRect();zoomAt(r.left+r.width/2,r.top+r.height/2,VB.w*.75)};
+  $("#zOut").onclick=function(){var r=svg.getBoundingClientRect();zoomAt(r.left+r.width/2,r.top+r.height/2,VB.w*1.33)};
+  $("#zFit").onclick=resetView;
+}
+
+/* ================= Shared helpers ================= */
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function allIds(){var a=[];for(var i=1;i<=NN;i++)a.push(i);return a}
+function pickStart(){
+  var ids=shuffle(allIds()),dp=ids.slice(0,4);
+  var far=ids.filter(function(n){return dp.indexOf(n)<0&&Math.min.apply(null,dp.map(function(d){return dist[d][n]}))>=4});
+  var pool=far.length?far:ids.filter(function(n){return dp.indexOf(n)<0});
+  return {dp:dp,xp:pool[Math.floor(Math.random()*pool.length)]};
+}
+function movesFor(pos,t,occ,black){
+  var res=[];
+  ["taxi","bus","ug"].forEach(function(k){
+    if(t[k]>0)adj[k][pos].forEach(function(n){if(!occ[n])res.push({to:n,ticket:k})});
+  });
+  if(black&&t.black>0)allAdj[pos].forEach(function(n){if(!occ[n])res.push({to:n,ticket:"black"})});
+  return res;
+}
+function detOcc(except){var o={};S.dets.forEach(function(d){if(d.id!==except)o[d.pos]=1});return o}
+function xMoves(){return movesFor(S.x.pos,S.x.t,detOcc(-1),true)}
+function detMoves(d){return movesFor(d.pos,d.t,detOcc(d.id),false)}
+function mine(id){return !S.online||(OL&&OL.cur&&OL.cur.owners[id]===OL.cid)}
+function showScreen(name){["menu","online","game"].forEach(function(s){$("#"+s).classList.toggle("hidden",s!==name)})}
+
+/* ================= Solo ================= */
+function newGame(role){
+  var st=pickStart(),dp=st.dp,xp=st.xp;
+  var P={};allIds().forEach(function(n){if(dp.indexOf(n)<0)P[n]=1});
+  S={role:role,online:false,
+    x:{pos:xp,t:{taxi:4,bus:3,ug:3,black:2,double:2},log:[],last:null},
+    dets:dp.map(function(p,i){return{id:i,pos:p,t:{taxi:10,bus:8,ug:4}}}),
+    turn:"x",xStep:0,dbl:false,sel:0,moved:{},over:null,busy:false,hints:false,P:P,msg:"",token:0};
+  showScreen("game");resetView();
+  $("#overlay").classList.add("hidden");$("#sheet").classList.add("hidden");
+  firstRender=true;S.token++;
+  startXTurn(S.token);
+}
+function updateP(ticket,rev,pos){
+  if(rev){S.P={};S.P[pos]=1;return}
+  var occ=detOcc(-1),np={};
+  Object.keys(S.P).forEach(function(p){
+    var list=ticket==="black"?allAdj[p]:adj[ticket][p];
+    list.forEach(function(n){if(!occ[n])np[n]=1});
+  });
+  S.P=np;
+}
+function doXMove(opt,useDouble,dblPart){
+  var x=S.x;x.t[opt.ticket]--;if(useDouble)x.t.double--;
+  x.pos=opt.to;
+  var idx=x.log.length+1,rev=REVEALS.indexOf(idx)>=0;
+  x.log.push({tk:opt.ticket,pos:opt.to,rev:rev,dbl:!!dblPart});
+  if(rev)x.last={pos:opt.to,round:idx};
+  updateP(opt.ticket,rev,opt.to);
+  if(rev)setMsg(S.role==="det"?"Mr. X surfaces at station "+opt.to+"!":"Your position is revealed: station "+opt.to+".");
+}
+function applyDet(d,opt){
+  d.t[opt.ticket]--;S.x.t[opt.ticket]++;
+  d.pos=opt.to;S.moved[d.id]=1;
+  if(d.pos===S.x.pos){endGame("det","Detective D"+(d.id+1)+" caught Mr. X at station "+S.x.pos+".");return true}
+  return false;
+}
+async function startXTurn(tok){
+  S.turn="x";S.xStep=0;S.dbl=false;
+  if(!xMoves().length){endGame("det","Mr. X is trapped with nowhere to go.");return}
+  if(S.role==="det"){
+    setMsg("Mr. X is slipping through the fog\u2026");
+    S.busy=true;render();
+    await sleep(900);if(S.token!==tok)return;
+    var plan=aiXPlan();
+    for(var i=0;i<plan.length;i++){
+      if(i===1)S.xStep=1;
+      doXMove(plan[i],plan.length===2&&i===0,plan.length===2);
+      render();
+      if(i<plan.length-1){await sleep(800);if(S.token!==tok)return}
+    }
+    S.xStep=0;S.busy=false;
+    var last=S.x.log[S.x.log.length-1];
+    if(!last.rev)setMsg("Mr. X used "+(plan.length===2?"a double move: ":"")+plan.map(function(o){return TK[o.ticket].name}).join(" then ")+".");
+    startDetPhase(tok);
+  }else{
+    setMsg("Your move. Tap a glowing station.");render();focusOn(S.x.pos);
+  }
+}
+async function humanX(opt){
+  var second=S.xStep===1,startDbl=S.dbl&&!second;
+  doXMove(opt,startDbl,second||startDbl);
+  if(startDbl){
+    S.xStep=1;
+    if(xMoves().length){setMsg("Double move! Choose your second station.");render();focusOn(S.x.pos);return}
+  }
+  S.xStep=0;S.dbl=false;render();
+  startDetPhase(S.token);
+}
+async function startDetPhase(tok){
+  S.turn="det";S.moved={};
+  var any=false;
+  S.dets.forEach(function(d){if(detMoves(d).length)any=true;else S.moved[d.id]=1});
+  if(!any){endGame("x","The detectives have run out of tickets and moves!");return}
+  if(S.role==="x"){
+    S.busy=true;setMsg("The detectives close in\u2026");render();
+    await sleep(700);if(S.token!==tok)return;
+    for(var i=0;i<S.dets.length;i++){
+      var d=S.dets[i];if(S.moved[d.id])continue;
+      await sleep(600);if(S.token!==tok)return;
+      var o=aiDetChoose(d);
+      if(applyDet(d,o)){render();return}
+      render();
+    }
+    S.busy=false;afterDetPhase(tok);
+  }else{
+    S.sel=firstUnmoved();
+    setMsg("Move each detective. Tap one, then a glowing station.");render();focusOn(S.dets[S.sel].pos);
+  }
+}
+function firstUnmoved(){for(var i=0;i<S.dets.length;i++)if(!S.moved[i])return i;return -1}
+function afterDetPhase(tok){
+  var occ=detOcc(-1),np={};
+  Object.keys(S.P).forEach(function(p){if(!occ[p])np[p]=1});
+  S.P=np;
+  if(S.x.log.length>=MAXR){endGame("x","Mr. X evaded capture for all "+MAXR+" rounds.");return}
+  startXTurn(tok);
+}
+function endGame(w,text){S.over={winner:w,text:text};S.busy=false;render();showEnd()}
+function showEnd(){
+  var o=$("#overlayCard"),youWin=(S.over.winner==="x")===(S.role==="x");
+  o.innerHTML='<h2 class="disp">'+(youWin?"You win":"You lose")+'</h2><p id="endTxt"></p><p>Mr. X ended at station '+(S.x.pos||"?")+'.</p>'+
+    '<div class="row">'+(S.online?'':'<button class="btn pri grow" id="again">Play again</button>')+'<button class="btn grow" id="toMenu">Menu</button></div>';
+  $("#endTxt").textContent=S.over.text;
+  $("#overlay").classList.remove("hidden");
+  if($("#again"))$("#again").onclick=function(){newGame(S.role)};
+  $("#toMenu").onclick=toMenu;
+}
+function toMenu(){
+  if(S){S.token++;if(S.online&&S.over)lsSet("fogyard_host","")}
+  leaveOnline();
+  S=null;$("#overlay").classList.add("hidden");$("#sheet").classList.add("hidden");showScreen("menu");
+}
+
+/* ================= Input ================= */
+function onTap(n){
+  if(!S||S.over||S.busy)return;
+  var opts,fn;
+  if(S.role==="x"&&S.turn==="x"){
+    opts=xMoves().filter(function(o){return o.to===n});fn=S.online?onlineXPick:humanX;
+  }else if(S.role==="det"&&S.turn==="det"){
+    var at=S.dets.filter(function(d){return d.pos===n})[0];
+    if(at&&!S.moved[at.id]&&mine(at.id)){S.sel=at.id;render();return}
+    var d=S.dets[S.sel];if(!d||S.moved[d.id]||!mine(d.id))return;
+    opts=detMoves(d).filter(function(o){return o.to===n});
+    fn=S.online?function(o){sendIntent(d,o)}:function(o){humanDet(d,o)};
+  }else return;
+  if(!opts.length){flash("You can\u2019t reach station "+n+" from here with your tickets.");return}
+  if(opts.length===1){fn(opts[0]);return}
+  showSheet(n,opts,fn);
+}
+function humanDet(d,o){
+  if(applyDet(d,o)){render();return}
+  var nx=firstUnmoved();
+  if(nx<0){render();S.busy=true;setTimeout(function(){S.busy=false;afterDetPhase(S.token)},500)}
+  else{S.sel=nx;setMsg("Moved to "+d.pos+". Pick the next detective.");render();focusOn(S.dets[nx].pos)}
+}
+function showSheet(n,opts,fn){
+  var held=S.role==="x"?S.x.t:S.dets[S.sel].t;
+  var h='<h2 class="disp">Station '+n+'</h2><p>Choose a ticket.</p>';
+  opts.forEach(function(o,i){
+    h+='<button class="opt" data-i="'+i+'"><span class="dot" style="background:'+TK[o.ticket].col+'">'+TK[o.ticket].sh+'</span>'+TK[o.ticket].name+'<small>'+held[o.ticket]+' left</small></button>';
+  });
+  h+='<button class="btn" id="shCancel">Cancel</button>';
+  $("#sheetCard").innerHTML=h;$("#sheet").classList.remove("hidden");
+  $("#sheetCard").querySelectorAll(".opt").forEach(function(b){b.onclick=function(){$("#sheet").classList.add("hidden");fn(opts[+b.getAttribute("data-i")])}});
+  $("#shCancel").onclick=function(){$("#sheet").classList.add("hidden")};
+}
+$("#sheet").addEventListener("click",function(e){if(e.target===this)this.classList.add("hidden")});
+
+/* ================= Solo AI ================= */
+function aiXPlan(){
+  var x=S.x,dpos=S.dets.map(function(d){return d.pos}),occ={};dpos.forEach(function(p){occ[p]=1});
+  function minD(n){return Math.min.apply(null,dpos.map(function(d){return dist[d][n]}))}
+  function nodeScore(n,rev){
+    var ds=dpos.map(function(d){return dist[d][n]});
+    var m=Math.min.apply(null,ds);
+    var t1=ds.filter(function(v){return v<=1}).length,t2=ds.filter(function(v){return v<=2}).length;
+    var esc=0;allAdj[n].forEach(function(k){if(!occ[k]&&minD(k)>1)esc++});
+    return m*(rev?4.5:3)-t1*18-t2*2.5+Math.min(esc,4)*1.4;
+  }
+  var cur=minD(x.pos),nextIdx=x.log.length+1;
+  function cost(o,t){
+    var c={taxi:0,bus:0.6,ug:1.2,black:cur<=2?1.5:5}[o.ticket];
+    if(o.ticket!=="black"&&t[o.ticket]<=1)c+=1.5;
+    return c;
+  }
+  var mv=movesFor(x.pos,x.t,occ,true),best=null;
+  mv.forEach(function(o){
+    var s=nodeScore(o.to,REVEALS.indexOf(nextIdx)>=0)-cost(o,x.t)+Math.random()*1.2;
+    if(!best||s>best.s)best={s:s,opts:[o]};
+  });
+  if(x.t.double>0&&nextIdx<=MAXR-1&&cur<=2){
+    var bd=null;
+    mv.forEach(function(o1){
+      var t2={taxi:x.t.taxi,bus:x.t.bus,ug:x.t.ug,black:x.t.black};t2[o1.ticket]--;
+      movesFor(o1.to,t2,occ,true).forEach(function(o2){
+        var s=nodeScore(o2.to,REVEALS.indexOf(nextIdx+1)>=0)-cost(o1,x.t)-cost(o2,t2)-4.5+Math.random()*1.2;
+        if(!bd||s>bd.s)bd={s:s,opts:[o1,o2]};
+      });
+    });
+    if(bd&&bd.s>best.s+2)return bd.opts;
+  }
+  return best.opts;
+}
+function aiDetChoose(d){
+  var P=Object.keys(S.P).map(Number);
+  var others=S.dets.filter(function(o){return o.id!==d.id}).map(function(o){return o.pos});
+  var mv=detMoves(d);
+  if(!P.length)return mv[Math.floor(Math.random()*mv.length)];
+  var best=null;
+  mv.forEach(function(o){
+    var pts=others.concat([o.to]),s=0;
+    P.forEach(function(p){var m=99;pts.forEach(function(q){if(dist[q][p]<m)m=dist[q][p]});s+=m});
+    s=s/P.length+{taxi:0,bus:0.08,ug:0.3}[o.ticket]+Math.random()*0.05;
+    if(!best||s<best.s)best={s:s,o:o};
+  });
+  return best.o;
+}
+
+/* ================= Rendering ================= */
+var firstRender=true;
+function setMsg(t){if(S)S.msg=t}
+var flashT=null;
+function flash(t){$("#msg").textContent=t;clearTimeout(flashT);flashT=setTimeout(function(){if(S)$("#msg").textContent=S.msg},2200)}
+function chipTk(k,n){return '<span class="chip"><span class="dot" style="background:'+TK[k].col+'">'+TK[k].sh+'</span>'+TK[k].name+' '+n+'</span>'}
+
+function render(){
+  if(!S)return;
+  var x=S.x,len=x.log.length;
+  $("#rInfo").textContent="Round "+Math.min(len+(S.turn==="x"?1:0)||1,MAXR)+" of "+MAXR;
+  $("#tInfo").textContent=S.over?"Game over":(S.turn==="x"?(S.role==="x"?"Your turn as Mr. X":"Mr. X is moving"):(S.role==="det"?"Detectives\u2019 turn":"Detectives are moving"));
+  var lh="";
+  for(var i=1;i<=MAXR;i++){
+    var e=x.log[i-1],isRev=REVEALS.indexOf(i)>=0,cur=(i===len+1&&!S.over);
+    var showPos=e&&e.pos&&(S.role==="x"||e.rev||S.over);
+    lh+='<div class="lc'+(isRev?" rev":"")+(cur?" cur":"")+'" data-cur="'+(cur?1:0)+'"><span class="n">'+(isRev?"\u2605 ":"")+i+'</span>'+
+      (e?'<span class="tk" style="background:'+TK[e.tk].col+'">'+TK[e.tk].sh+'</span>':'<span class="tk e"></span>')+
+      '<span class="p">'+(showPos?e.pos:"")+'</span>'+(e&&e.dbl?'<span class="d">\u00D72</span>':'')+'</div>';
+  }
+  $("#log").innerHTML=lh;
+  var cc=$("#log [data-cur='1']");if(cc){var w=$("#logwrap");w.scrollLeft=cc.offsetLeft-w.clientWidth/2+18}
+  function place(id,pos,show){
+    var g=$(id),n=nodes[pos];
+    if(firstRender)g.style.transition="none";
+    g.style.transform="translate("+n.x+"px,"+n.y+"px)";
+    g.style.opacity=show?1:0;
+  }
+  S.dets.forEach(function(d){place("#tok"+d.id,d.pos,true)});
+  var xpos=x.pos||(x.last?x.last.pos:1);
+  var xShow=!!x.pos&&(S.role==="x"||!!S.over||(x.last&&x.last.round===len&&len>0));
+  place("#tokx",xpos,xShow);
+  if(firstRender){void $("#map").getBoundingClientRect();["#tok0","#tok1","#tok2","#tok3","#tokx"].forEach(function(s){$(s).style.transition=""});firstRender=false}
+  var dh="";
+  if(S.role==="det"&&S.hints)Object.keys(S.P).forEach(function(p){var n=nodes[p];dh+='<circle class="hint" cx="'+n.x+'" cy="'+n.y+'" r="17"/>'});
+  if(S.role==="det"&&x.last&&x.last.round!==len&&!S.over){var g=nodes[x.last.pos];dh+='<circle cx="'+g.x+'" cy="'+g.y+'" r="21" fill="none" stroke="rgba(0,0,0,.55)" stroke-width="6"/><circle class="ghost" cx="'+g.x+'" cy="'+g.y+'" r="21"/><text class="gl" x="'+g.x+'" y="'+(g.y-28)+'">seen R'+x.last.round+'</text>'}
+  var legal=[];
+  if(!S.over&&!S.busy){
+    if(S.role==="x"&&S.turn==="x")legal=xMoves();
+    else if(S.role==="det"&&S.turn==="det"&&S.sel>=0&&!S.moved[S.sel]&&mine(S.sel))legal=detMoves(S.dets[S.sel]);
+  }
+  var seen={};legal.forEach(function(o){if(!seen[o.to]){seen[o.to]=1;var n=nodes[o.to];dh+='<circle cx="'+n.x+'" cy="'+n.y+'" r="17" fill="none" stroke="rgba(0,0,0,.55)" stroke-width="7"/><circle class="legal" cx="'+n.x+'" cy="'+n.y+'" r="17"/>'}});
+  if(S.role==="det"&&S.turn==="det"&&S.sel>=0&&!S.over){var sn=nodes[S.dets[S.sel].pos];dh+='<circle cx="'+sn.x+'" cy="'+sn.y+'" r="19" fill="none" stroke="rgba(0,0,0,.55)" stroke-width="6"/><circle class="selr" cx="'+sn.x+'" cy="'+sn.y+'" r="19"/>'}
+  $("#dyn").innerHTML=dh;
+  $("#msg").textContent=S.msg;
+  renderPanel();
+}
+function renderPanel(){
+  var p=$("#panel"),h="";
+  if(S.role==="x"){
+    var t=S.x.t;
+    h+='<div class="chips">'+chipTk("taxi",t.taxi)+chipTk("bus",t.bus)+chipTk("ug",t.ug)+chipTk("black",t.black)+'</div>';
+    var canDbl=t.double>0&&S.x.log.length<=MAXR-2&&S.turn==="x"&&S.xStep===0&&!S.busy&&!S.over;
+    h+='<div class="row"><button class="btn grow'+(S.dbl?" on":"")+'" id="btnDbl"'+(canDbl?"":" disabled")+'>Double move ('+t.double+' left)'+(S.dbl?": on":"")+'</button></div>';
+  }else{
+    h+='<div class="chips">';
+    S.dets.forEach(function(d){
+      var mn=mine(d.id),nm="";
+      if(S.online&&!mn&&OL&&OL.cur&&OL.cur.names){var who=OL.cur.names[OL.cur.owners[d.id]];if(who)nm=" "+esc(who)}
+      h+='<button class="chip'+(S.sel===d.id?" sel":"")+(S.moved[d.id]?" done":"")+(mn?"":" other")+'" data-d="'+d.id+'"><span class="dot" style="background:'+DCOL[d.id]+'">'+(d.id+1)+'</span>D'+(d.id+1)+nm+(S.moved[d.id]?" \u2713":"")+'</button>';
+    });
+    h+='</div>';
+    var sd=S.dets[S.sel>=0?S.sel:0];
+    h+='<div class="row"><div class="chips grow">'+chipTk("taxi",sd.t.taxi)+chipTk("bus",sd.t.bus)+chipTk("ug",sd.t.ug)+'</div><button class="btn'+(S.hints?" on":"")+'" id="btnHint">Hints</button></div>';
+  }
+  p.innerHTML=h;
+  var bd=$("#btnDbl");if(bd)bd.onclick=function(){S.dbl=!S.dbl;setMsg(S.dbl?"Double move armed. Pick two stations in a row.":"Your move. Tap a glowing station.");render()};
+  var bh=$("#btnHint");if(bh)bh.onclick=function(){S.hints=!S.hints;render()};
+  p.querySelectorAll("[data-d]").forEach(function(b){b.onclick=function(){var id=+b.getAttribute("data-d");if(S.turn==="det"&&!S.busy&&!S.moved[id]&&mine(id)){S.sel=id;render();focusOn(S.dets[id].pos)}}});
+}
+
+/* =====================================================================
+   ONLINE PLAY (peer-to-peer, PeerJS)
+   The host plays Mr. X and acts as the referee. Mr. X's hidden position
+   never leaves the host's device. Detectives (guests) send move requests,
+   and the host validates them and broadcasts the public game state.
+   ===================================================================== */
+var CODE_CHARS="ABCDEFGHJKMNPQRSTUVWXYZ",INIT_DT={taxi:10,bus:8,ug:4},CID=null;
+function genCode(){var s="";for(var i=0;i<4;i++)s+=CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];return s}
+function getCid(){if(!CID){CID=lsGet("fogyard_cid");if(!CID){CID="c"+Math.random().toString(36).slice(2,10);lsSet("fogyard_cid",CID)}}return CID}
+function peerOk(){return typeof Peer!=="undefined"}
+function showOlHome(){$("#olHome").classList.remove("hidden");$("#olLobby").classList.add("hidden");$("#olTitle").textContent="Play online"}
+function showOlLobby(){$("#olHome").classList.add("hidden");$("#olLobby").classList.remove("hidden");$("#olTitle").textContent="Game lobby"}
+function olError(msg){leaveOnline();showScreen("online");showOlHome();$("#olNote").textContent=msg;refreshOnline(true)}
+function refreshOnline(keepNote){
+  var ok=peerOk();
+  if(!keepNote)$("#olNote").textContent=ok?"Online games connect players directly. If a friend can\u2019t connect, try the same Wi\u2011Fi or turn off a VPN.":"Online play couldn\u2019t load. Check your connection and reload the page.";
+  $("#olHost").disabled=!ok;$("#olJoin").disabled=!ok;
+  var saved=null;try{saved=JSON.parse(lsGet("fogyard_host")||"null")}catch(e){}
+  var rb=$("#olResume");
+  if(ok&&saved&&saved.R&&saved.R.phase==="playing"){rb.textContent="Resume hosting game "+saved.code;rb.classList.remove("hidden");rb.onclick=function(){resumeHost(saved)}}
+  else rb.classList.add("hidden");
+  var nm=lsGet("fogyard_name");if(nm&&!$("#olName").value)$("#olName").value=nm;
+}
+$("#playOnline").onclick=function(){showScreen("online");showOlHome();refreshOnline()};
+$("#olBack").onclick=function(){leaveOnline();showScreen("menu")};
+function leaveOnline(){
+  if(!OL)return;
+  var o=OL;o.closed=true;OL=null;
+  clearTimeout(o.reconTimer);
+  try{Object.keys(o.conns||{}).forEach(function(k){o.conns[k].close()})}catch(e){}
+  try{if(o.conn)o.conn.close()}catch(e){}
+  try{o.peer.destroy()}catch(e){}
+}
+
+/* ----- host ----- */
+function newHostSession(code,peer){
+  return {role:"x",host:true,code:code,peer:peer,cid:getCid(),conns:{},players:{},R:null,cur:null,secret:null,endShown:false,phase:"lobby",closed:false,q:Promise.resolve()};
+}
+$("#olHost").onclick=function(){
+  if(!peerOk())return;
+  leaveOnline();
+  var tries=0;
+  (function attempt(){
+    var code=genCode(),peer=new Peer("fogyard-"+code),o=newHostSession(code,peer);OL=o;
+    peer.on("open",function(){if(OL!==o)return;showScreen("online");showOlLobby();renderLobby()});
+    peer.on("error",function(err){
+      if(OL!==o)return;
+      if(err.type==="unavailable-id"&&tries++<6){try{peer.destroy()}catch(e){}OL=null;attempt()}
+      else olError("Couldn\u2019t reach the matchmaking server. Check your connection and try again.");
+    });
+    peer.on("disconnected",function(){try{peer.reconnect()}catch(e){}});
+    peer.on("connection",function(conn){hostConn(o,conn)});
+  })();
+};
+function resumeHost(saved){
+  if(!peerOk())return;
+  leaveOnline();
+  var peer=new Peer("fogyard-"+saved.code),o=newHostSession(saved.code,peer);OL=o;
+  o.R=saved.R;o.secret=saved.secret;o.players=saved.players||{};o.phase="playing";
+  peer.on("open",function(){if(OL!==o)return;syncGame(o.R)});
+  peer.on("error",function(err){
+    if(OL!==o)return;
+    olError(err.type==="unavailable-id"?"That game code is still held by the server. Wait a minute and try Resume again.":"Couldn\u2019t reach the matchmaking server.");
+  });
+  peer.on("disconnected",function(){try{peer.reconnect()}catch(e){}});
+  peer.on("connection",function(conn){hostConn(o,conn)});
+}
+function persistHost(o){
+  if(!o||!o.host)return;
+  if(!o.R||o.R.phase!=="playing"){lsSet("fogyard_host","");return}
+  lsSet("fogyard_host",JSON.stringify({code:o.code,R:o.R,secret:o.secret,players:o.players}));
+}
+function lobbyList(o){return Object.keys(o.players).map(function(c){return {cid:c,name:o.players[c].name}})}
+function broadcastLobby(o){Object.keys(o.conns).forEach(function(c){var k=o.conns[c];if(k.open)k.send({t:"lobby",players:lobbyList(o)})})}
+function broadcastState(o){Object.keys(o.conns).forEach(function(c){var k=o.conns[c];if(k.open)k.send({t:"state",meta:o.R})})}
+function hostConn(o,conn){
+  var cid=null;
+  conn.on("data",function(m){
+    if(OL!==o||!m||typeof m!=="object")return;
+    if(m.t==="hello"){
+      cid=String(m.cid||"").slice(0,24);var name=String(m.name||"Detective").slice(0,14)||"Detective";
+      if(!cid)return;
+      var known=o.players[cid];
+      if(o.phase==="lobby"){
+        if(!known&&Object.keys(o.players).length>=4){conn.send({t:"full"});return}
+        o.players[cid]={name:name};o.conns[cid]=conn;
+        broadcastLobby(o);renderLobby();
+      }else if(known){
+        o.conns[cid]=conn;conn.send({t:"state",meta:o.R});
+      }else conn.send({t:"started"});
+    }else if(m.t==="intent"&&cid&&o.phase==="playing"){
+      var it={u:cid,di:m.di|0,to:m.to|0,tk:String(m.tk),phase:m.phase|0};
+      o.q=o.q.then(function(){return refApply(o,it)}).catch(function(){});
+    }
+  });
+  conn.on("close",function(){
+    if(OL!==o||!cid||o.conns[cid]!==conn)return;
+    delete o.conns[cid];
+    if(o.phase==="lobby"){delete o.players[cid];broadcastLobby(o);renderLobby()}
+  });
+}
+$("#olStart").onclick=function(){
+  var o=OL;if(!o||!o.host||o.phase!=="lobby")return;
+  var cids=Object.keys(o.players).sort();if(!cids.length)return;
+  var st=pickStart(),names={};
+  cids.forEach(function(c){names[c]=o.players[c].name});
+  o.secret={pos:st.xp,hist:[]};
+  o.R={phase:"playing",owners:[0,1,2,3].map(function(i){return cids[i%cids.length]}),names:names,
+    dpos:st.dp,dt:[0,1,2,3].map(function(){return {taxi:10,bus:8,ug:4}}),
+    log:[],turn:"x",phaseNo:0,moved:[false,false,false,false],last:null,
+    P:allIds().filter(function(n){return st.dp.indexOf(n)<0}),winner:null,reason:"",xend:null};
+  o.phase="playing";
+  persistHost(o);broadcastState(o);syncGame(o.R);
+};
+function rOcc(R,except){var o={};R.dpos.forEach(function(p,i){if(i!==except)o[p]=1});return o}
+function deriveXT(R){
+  var t={taxi:4,bus:3,ug:3,black:2,double:2};
+  R.log.forEach(function(e){t[e.tk]--});
+  t.double-=R.log.filter(function(e){return e.dbl}).length/2;
+  R.dt.forEach(function(d){["taxi","bus","ug"].forEach(function(k){t[k]+=INIT_DT[k]-d[k]})});
+  return t;
+}
+async function refApply(o,it){
+  if(OL!==o||!o.R)return;
+  var R=o.R;
+  if(R.phase!=="playing"||R.turn!=="det"||it.phase!==R.phaseNo)return;
+  var di=it.di;
+  if(di<0||di>3||R.owners[di]!==it.u||R.moved[di])return;
+  var legal=movesFor(R.dpos[di],R.dt[di],rOcc(R,di),false).some(function(m){return m.to===it.to&&m.ticket===it.tk});
+  if(!legal)return;
+  R.dpos[di]=it.to;R.dt[di][it.tk]--;R.moved[di]=true;
+  if(it.to===o.secret.pos){
+    R.phase="over";R.winner="det";R.reason="Detective D"+(di+1)+" caught Mr. X at station "+o.secret.pos+".";R.xend=o.secret.pos;
+  }else if(R.moved.every(Boolean)){
+    var occ=rOcc(R,-1);
+    R.P=(R.P||[]).filter(function(p){return !occ[p]});
+    if(R.log.length>=MAXR){
+      R.phase="over";R.winner="x";R.reason="Mr. X evaded capture for all "+MAXR+" rounds.";R.xend=o.secret.pos;
+    }else{
+      R.turn="x";R.moved=[false,false,false,false];
+      if(!movesFor(o.secret.pos,deriveXT(R),occ,true).length){
+        R.phase="over";R.winner="det";R.reason="Mr. X is trapped with nowhere to go.";R.xend=o.secret.pos;
+      }
+    }
+  }
+  persistHost(o);broadcastState(o);syncGame(R);
+}
+/* host's own move */
+function onlineXPick(o){
+  var startDbl=S.dbl&&S.xStep===0&&S.x.t.double>0,second=S.xStep===1;
+  if(startDbl){
+    doXMove(o,true,true);S.xStep=1;
+    if(xMoves().length){setMsg("Double move! Choose your second station.");render();focusOn(S.x.pos);return}
+    S.xStep=0;
+  }else if(second){doXMove(o,false,true);S.xStep=0}
+  else doXMove(o,false,false);
+  S.dbl=false;
+  onlineXCommit();
+}
+function onlineXCommit(){
+  var o=OL,R=o.R;
+  o.secret={pos:S.x.pos,hist:S.x.log.map(function(e){return e.pos})};
+  R.log=S.x.log.map(function(e){return{tk:e.tk,rev:e.rev,dbl:e.dbl,pos:e.rev?e.pos:null}});
+  R.last=S.x.last;
+  R.P=Object.keys(S.P).map(Number);
+  R.turn="det";R.phaseNo=R.phaseNo+1;
+  var stuck=S.dets.map(function(d){return detMoves(d).length===0});
+  R.moved=stuck;
+  if(stuck.every(Boolean)){R.phase="over";R.winner="x";R.reason="The detectives have run out of tickets and moves!";R.xend=o.secret.pos}
+  persistHost(o);broadcastState(o);syncGame(R);
+}
+
+/* ----- guest ----- */
+$("#olJoin").onclick=function(){
+  var code=($("#olCode").value||"").toUpperCase().replace(/[^A-Z]/g,"");
+  var name=($("#olName").value||"").trim()||"Detective";
+  if(code.length!==4){$("#olNote").textContent="Enter the 4-letter code.";return}
+  lsSet("fogyard_name",name);
+  joinGame(code,name);
+};
+function joinGame(code,name){
+  if(!peerOk())return;
+  leaveOnline();
+  $("#olNote").textContent="Connecting\u2026";
+  var peer=new Peer(),o={role:"det",host:false,code:code,peer:peer,cid:getCid(),name:name,conn:null,cur:null,players:[],endShown:false,phase:"connecting",hasJoined:false,tries:0,closed:false};
+  OL=o;
+  peer.on("open",function(){connectToHost(o)});
+  peer.on("error",function(err){
+    if(OL!==o)return;
+    if(err.type==="peer-unavailable"){
+      if(!o.hasJoined&&o.tries===0)olError("No game found with code "+code+". Check the code, and make sure the host has the game open.");
+      else scheduleReconnect(o);
+    }else if(err.type!=="disconnected")olError("Couldn\u2019t reach the matchmaking server. Check your connection and try again.");
+  });
+  peer.on("disconnected",function(){try{peer.reconnect()}catch(e){}});
+}
+function connectToHost(o){
+  if(OL!==o||o.closed)return;
+  var conn=o.peer.connect("fogyard-"+o.code,{reliable:true});o.conn=conn;
+  conn.on("open",function(){o.hasJoined=true;o.tries=0;conn.send({t:"hello",cid:o.cid,name:o.name})});
+  conn.on("data",function(m){
+    if(OL!==o||!m||typeof m!=="object")return;
+    if(m.t==="lobby"){o.phase="lobby";o.players=m.players||[];showScreen("online");showOlLobby();renderLobby()}
+    else if(m.t==="state"&&m.meta){o.phase=m.meta.phase;syncGame(m.meta)}
+    else if(m.t==="full")olError("That game is full (up to 4 detective players).");
+    else if(m.t==="started")olError("That game has already started.");
+  });
+  conn.on("close",function(){if(OL===o)scheduleReconnect(o)});
+}
+function scheduleReconnect(o){
+  if(OL!==o||o.reconTimer||o.closed)return;
+  if(++o.tries>40){olError("Lost connection to the host.");return}
+  if(S&&S.online){setMsg("Disconnected from Mr. X. Reconnecting\u2026");$("#msg").textContent=S.msg}
+  o.reconTimer=setTimeout(function(){o.reconTimer=null;if(OL===o)connectToHost(o)},2500);
+}
+function sendIntent(d,o){
+  var R=OL.cur;
+  if(!OL.conn||!OL.conn.open){flash("Not connected to Mr. X yet. Reconnecting\u2026");return}
+  if(S.sent&&S.sent.phase===R.phaseNo&&S.sent.di===d.id&&Date.now()-S.sent.t<6000){flash("Move already sent. Waiting for confirmation.");return}
+  S.sent={di:d.id,phase:R.phaseNo,t:Date.now()};
+  setMsg("Move sent. Waiting for confirmation\u2026");$("#msg").textContent=S.msg;
+  OL.conn.send({t:"intent",di:d.id,to:o.to,tk:o.ticket,phase:R.phaseNo});
+}
+
+/* ----- lobby ----- */
+function renderLobby(){
+  var o=OL;if(!o)return;
+  $("#olCodeShow").textContent=o.code;
+  var list=$("#olPlayers");list.textContent="";
+  function row(name,role){
+    var r=document.createElement("div");r.className="pl";
+    var w=document.createElement("span");w.className="who";w.textContent=name;
+    var l=document.createElement("span");l.className="rl";l.textContent=role;
+    r.appendChild(w);r.appendChild(l);list.appendChild(r);
+  }
+  var ps=o.host?lobbyList(o):(o.players||[]);
+  if(o.host)row("You","Mr. X");
+  ps.forEach(function(p){row(p.name+(p.cid===o.cid?" (you)":""),"Detective")});
+  var st=$("#olStart"),msg=$("#olStatus");
+  st.classList.toggle("hidden",!o.host);
+  st.disabled=!ps.length;
+  if(o.host)msg.textContent=ps.length?"Ready. With fewer than four detective players, each one controls several detectives.":"Waiting for friends to join. Share the code.";
+  else msg.textContent="You\u2019re a detective. Waiting for Mr. X to start the game.";
+}
+$("#olShare").onclick=function(){
+  if(!OL)return;
+  var txt="Join my Fog Yard game with code "+OL.code;
+  if(navigator.share)navigator.share({title:"Fog Yard",text:txt,url:location.href}).catch(function(){});
+  else if(navigator.clipboard)navigator.clipboard.writeText(txt+" at "+location.href).then(function(){$("#olStatus").textContent="Invite copied."}).catch(function(){});
+};
+
+/* ----- state sync (host and guests) ----- */
+function syncGame(R){
+  var o=OL;if(!o)return;
+  o.cur=R;
+  var role=o.role==="x"?"x":"det";
+  if(!S||!S.online){
+    S={role:role,online:true,x:{pos:null,t:{},log:[],last:null},dets:[],turn:"x",xStep:0,dbl:false,sel:-1,moved:{},over:null,busy:false,hints:false,P:{},msg:"",token:0,sent:null};
+    showScreen("game");resetView();firstRender=true;
+  }
+  S.dets=R.dpos.map(function(p,i){return{id:i,pos:p,t:{taxi:R.dt[i].taxi,bus:R.dt[i].bus,ug:R.dt[i].ug}}});
+  S.turn=R.turn;
+  S.moved={};R.moved.forEach(function(m,i){if(m)S.moved[i]=1});
+  S.P={};(R.P||[]).forEach(function(n){S.P[n]=1});
+  S.x.last=R.last;S.x.t=deriveXT(R);
+  if(role==="x"){
+    var hist=(o.secret&&o.secret.hist)||[];
+    S.x.pos=o.secret.pos;
+    S.x.log=R.log.map(function(e,i){return{tk:e.tk,rev:e.rev,dbl:e.dbl,pos:hist[i]||e.pos}});
+  }else{
+    S.x.log=R.log.map(function(e){return{tk:e.tk,rev:e.rev,dbl:e.dbl,pos:e.pos}});
+    S.x.pos=(R.phase==="over"&&R.xend)?R.xend:(R.last&&R.last.round===R.log.length?R.last.pos:null);
+  }
+  S.over=R.phase==="over"?{winner:R.winner,text:R.reason}:null;
+  if(R.turn!=="x"){S.dbl=false;S.xStep=0}
+  var prevSel=S.sel;
+  if(role==="det"){
+    var mi=[0,1,2,3].filter(function(i){return R.owners[i]===o.cid});
+    if(mi.indexOf(S.sel)<0||S.moved[S.sel]){
+      var nx=mi.filter(function(i){return !S.moved[i]})[0];
+      S.sel=nx!==undefined?nx:(mi[0]!==undefined?mi[0]:0);
+    }
+  }
+  S.msg=onlineMsg(R);
+  render();
+  if(role==="det"&&S.sel!==prevSel&&R.turn==="det"&&!S.moved[S.sel])focusOn(S.dets[S.sel].pos);
+  if(role==="x"&&R.turn==="x"&&!S.over&&S.xStep===0)focusOn(S.x.pos);
+  if(S.over&&!o.endShown){o.endShown=true;showEnd();if(o.host)lsSet("fogyard_host","")}
+}
+function onlineMsg(R){
+  if(R.phase==="over")return R.reason;
+  var len=R.log.length,revNow=R.last&&R.last.round===len&&R.turn==="det",done=R.moved.filter(Boolean).length;
+  if(S.role==="x"){
+    if(R.turn==="x")return S.xStep===1?"Double move! Choose your second station.":"Your move. Tap a glowing station.";
+    return (revNow?"You were revealed at station "+R.last.pos+". ":"")+"Detectives are moving ("+done+" of 4 done)\u2026";
+  }
+  if(R.turn==="x")return "Mr. X is choosing a move\u2026";
+  var pre=revNow?"Mr. X surfaced at station "+R.last.pos+"! ":"";
+  var left=[0,1,2,3].filter(function(i){return R.owners[i]===OL.cid&&!R.moved[i]});
+  return pre+(left.length?"Your turn. Tap a detective, then a glowing station.":"Waiting for the other detectives\u2026");
+}
+
+/* ================= Help & wiring ================= */
+function showHelp(){
+  $("#overlayCard").innerHTML='<h2 class="disp">How to play</h2><ul>'+
+    '<li>Mr. X hides in the countryside. The detectives hunt him. A detective who lands on his station wins.</li>'+
+    '<li>Everyone moves by ticket: taxi (yellow lines), bus (green, bus-stop stations) or underground (red dashed, red-ringed stations).</li>'+
+    '<li>Detectives see which ticket Mr. X used, never where he went. His position is revealed after rounds 3, 7, 11, 15 and 20 (the starred slots).</li>'+
+    '<li>Every ticket a detective spends goes to Mr. X. Black tickets let him use any transport, and a double move gives him two moves in a row.</li>'+
+    '<li>Mr. X wins by surviving 20 rounds, or if the detectives run out of moves. Detectives win by catching him or trapping him.</li>'+
+    '<li>Pinch or use + and \u2212 to zoom the map, and drag to pan. As a detective, turn on Hints to see every station he could be at.</li>'+
+    '<li>Online, the host plays Mr. X and keeps the page open: it holds his hidden position and referees the game.</li></ul>'+
+    '<div class="leg"><span><i style="background:var(--taxi)"></i>Taxi</span><span><i style="background:var(--bus)"></i>Bus</span><span><i style="background:var(--ug)"></i>Underground</span></div>'+
+    '<button class="btn pri" id="closeHelp">Got it</button>';
+  $("#overlay").classList.remove("hidden");
+  $("#closeHelp").onclick=function(){if(S&&S.over)showEnd();else $("#overlay").classList.add("hidden")};
+}
+$("#playDet").onclick=function(){newGame("det")};
+$("#playX").onclick=function(){newGame("x")};
+$("#menuHelp").onclick=showHelp;
+$("#btnHelp").onclick=showHelp;
+$("#btnMenu").onclick=function(){
+  $("#overlayCard").innerHTML='<h2 class="disp">Leave this game?</h2><p>'+(S&&S.online?(OL&&OL.host?"You can resume hosting from the online menu while this device keeps the game saved.":"You can rejoin with the same code while the host\u2019s game is still open."):"Your current game will be lost.")+'</p><div class="row"><button class="btn pri grow" id="lv">Leave</button><button class="btn grow" id="st">Keep playing</button></div>';
+  $("#overlay").classList.remove("hidden");
+  $("#lv").onclick=toMenu;
+  $("#st").onclick=function(){$("#overlay").classList.add("hidden")};
+};
+buildMap();
+refreshOnline();
+})();
+</script>
+</body>
+</html>
