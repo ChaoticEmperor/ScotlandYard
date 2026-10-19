@@ -23,27 +23,33 @@
     var kind = [null];
     for (i = 1; i <= N; i++) kind.push(adj.underground[i].length ? "underground" : adj.bus[i].length ? "bus" : "taxi");
 
-    // Hop distance over every transport (used by AI and hints).
-    var all = [[]];
+    // Neighbours over every transport (Mr. X, with black tickets) and over land only (detectives).
+    var all = [[]], land = [[]];
     for (i = 1; i <= N; i++) {
-      var s = {};
-      TYPES.forEach(function (t) { adj[t][i].forEach(function (n) { s[n] = 1; }); });
+      var s = {}, l = {};
+      TYPES.forEach(function (t) { adj[t][i].forEach(function (n) { s[n] = 1; if (t !== "ferry") l[n] = 1; }); });
       all.push(Object.keys(s).map(Number));
+      land.push(Object.keys(l).map(Number));
     }
-    var dist = [null];
-    for (i = 1; i <= N; i++) {
-      var d = new Int16Array(N + 1).fill(99), q = [i];
-      d[i] = 0;
-      for (var h = 0; h < q.length; h++) {
-        var u = q[h];
-        for (var k = 0; k < all[u].length; k++) if (d[all[u][k]] === 99) { d[all[u][k]] = d[u] + 1; q.push(all[u][k]); }
+    // Hop distances (used by the AI and hints): dist includes ferries, distLand does not.
+    function hops(nb) {
+      var out = [null];
+      for (var a = 1; a <= N; a++) {
+        var d = new Int16Array(N + 1).fill(99), q = [a];
+        d[a] = 0;
+        for (var h = 0; h < q.length; h++) {
+          var u = q[h];
+          for (var k = 0; k < nb[u].length; k++) if (d[nb[u][k]] === 99) { d[nb[u][k]] = d[u] + 1; q.push(nb[u][k]); }
+        }
+        out.push(d);
       }
-      dist.push(d);
+      return out;
     }
+    var dist = hops(all), distLand = hops(land);
 
     return {
       N: N, W: L.width, H: L.height, pos: pos, adj: adj, edges: edges, kind: kind,
-      neighbours: all, dist: dist, starts: g.starts, types: TYPES,
+      neighbours: all, landNeighbours: land, dist: dist, distLand: distLand, starts: g.starts, types: TYPES,
       river: L.river || null, geo: L.geo || null
     };
   }
