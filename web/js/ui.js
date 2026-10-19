@@ -217,7 +217,7 @@
   function statusText() {
     var s = ctl.s, who = myTurn();
     if (ui.replay) return { h: "Replay", p: ui.replay.label };
-    if (s.pending === "over") return { h: s.winner === "x" ? "Mr. X wins" : "The detectives win", p: s.reason };
+    if (s.pending === "over") { var w = outcome(); return { h: w.title, p: w.reason }; }
     if (ctl.offline) return { h: "Connection lost", p: "Reconnecting to the game master…", think: true };
     var nr = R.nextReveal(s), next = s.log.length + 1;
     var revTxt = nr ? (nr === next ? "Mr. X's next move is a reveal move." : "Mr. X surfaces after move " + nr + " (" + (nr - s.log.length) + " moves away).") : "No reveals left.";
@@ -582,10 +582,16 @@
   }
 
   // ---------- end of game ----------
+  // A failed audit of Mr. X's route (online, verified) overrides the result.
+  function outcome() {
+    var s = ctl.s, v = ctl.verdict;
+    var winner = v ? "det" : s.winner;
+    return { winner: winner, title: winner === "x" ? "Mr. X wins" : "The detectives win", reason: v ? "Mr. X broke the rules: " + v.problems[0] + "." : s.reason };
+  }
   function showEnd() {
-    var s = ctl.s, route = ctl.route();
-    var youWin = ctl.view === "gm" ? null : (s.winner === "x") === (ctl.view === "x");
-    overlay('<h2 class="disp">' + (youWin === null ? (s.winner === "x" ? "Mr. X wins" : "The detectives win") : youWin ? "You win!" : "You lose") + "</h2><p>" + esc(s.reason) + "</p>" +
+    var route = ctl.route(), w = outcome();
+    var youWin = ctl.spectator ? null : (w.winner === "x") === !!ctl.humanX;
+    overlay('<h2 class="disp">' + (youWin === null ? w.title : youWin ? "You win!" : "You lose") + "</h2><p>" + esc(w.reason) + "</p>" +
       (route ? '<p class="note">Mr. X\'s route: ' + route.join(" → ") + "</p>" : "") +
       '<div class="row"><button class="btn pri grow" data-act="rematch">Rematch</button><button class="btn grow" data-act="replay">Replay</button></div>' +
       '<div class="row"><button class="btn grow" data-act="log">Activity log</button><button class="btn grow" data-act="menu">Menu</button></div>');

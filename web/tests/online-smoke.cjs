@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+// Online smoke test (needs Playwright with Chromium). Serves web/ locally and plays full
+// three-player games through the real page, using the same-browser transport (?transport=local):
+// a game master and two guests, lobby roles, a guest reload (rejoin) and a host reload (resume),
+// in verified and trusted referee modes. Fails on page errors or failed rule checks.
+// Usage: node web/tests/online-smoke.cjs [outDir]
+const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
+const web = path.join(__dirname, "..");
+const out = process.argv[2] || null;
+
+function loadPlaywright() {
+  try { return require("playwright"); } catch (e) {
+    const root = require("node:child_process").execSync("npm root -g").toString().trim();
+    return require(path.join(root, "playwright"));
+  }
+}
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".png": "image/png" };
+function serve() {
+  return new Promise((resolve) => {
+    const srv = http.createServer((req, res) => {
+      const p = path.join(web, decodeURIComponent(req.url.split("?")[0]).replace(/^\/$/, "/index.html"));
+      if (!p.startsWith(web) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream" });
+      fs.createReadStream(p).pipe(res);
+    }).listen(0, "127.0.0.1", () => resolve(srv));
+  });
+}
+
+(async () => {
+  const srv = await serve();
+  const base = "http://127.0.0.1:" + srv.address().port + "/index.html?transport=local&profile=";
+  const { chromium } = loadPlaywright();
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
+  const errors = [];
+  async function open(name) {
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(name + ": " + e.message));
+    await page.goto(base + name);
+    if (name === "h") await page.evaluate(() => localStorage.clear());
+    await page.evaluate((n) => { const k = "fogyard." + n + ".settings"; localStorage.setItem(k, JSON.stringify({ tips: false, name: n.toUpperCase() })); }, name);
+    await page.reload();
+    return page;
+  }
+  async function playUntilOver(pages, opts) {
+    let reloaded = false, resumed = false;
+    for (let step = 0; step < 900; step++) {
+      for (const [name, page] of Object.entries(pages)) {
+        const over = await page.evaluate(() => { const c = FY.UI.controller; return !!(c && c.s && c.s.pending === "over"); }).catch(() => false);
+        if (over) return true;
+        const btn = await page.$("#vPlay .mv .tkb button");
+        if (btn) await btn.click().catch(() => {});
+      }
+      const moves = await pages.h.evaluate(() => (FY.UI.controller && FY.UI.controller.s ? FY.UI.controller.s.log.length : 0)).catch(() => 0);
+      if (opts.reloadGuest && !reloaded && moves >= 4) {
+        reloaded = true;
+        await pages.b.reload();
+        await pages.b.click("#mOnline");
+        await pages.b.click("[data-net=rejoin]");
+        await pages.b.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
+        console.log("  guest b rejoined at move", moves);
+      }
+      if (opts.reloadHost && !resumed && moves >= 8) {
+        resumed = true;
+        await pages.h.reload();
+        await pages.h.click("#mOnline");
+        await pages.h.click("[data-net=resume]");
+        await pages.h.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
+        console.log("  host resumed at move", moves);
+      }
+      await pages.h.waitForTimeout(80);
+    }
+    return false;
+  }
+
+  async function game(referee, xPlayer, opts) {
+    const h = await open("h"), a = await open("a"), b = await open("b");
+    await h.click("#mOnline");
+    await h.click("[data-net=host]");
+    await h.waitForSelector(".codebig");
+    const code = (await h.textContent(".codebig")).trim();
+    for (const g of [a, b]) {
+      await g.click("#mOnline");
+      await g.fill("#nCode", code);
+      await g.click("[data-net=join]");
+    }
+    await h.waitForFunction(() => document.querySelectorAll(".pl").length === 3, null, { timeout: 15000 });
+    await h.click('[data-ref="' + referee + '"]');
+    await h.click('[data-ndet="3"]');
+    const ids = await h.evaluate(() => Object.keys(FY.Net.session.players));
+    // Give Mr. X to the requested player: guests are listed in join order (a, then b).
+    const guestIds = ids.filter((id) => id !== "host");
+    const target = xPlayer === "h" ? "host" : guestIds[xPlayer === "a" ? 0 : 1];
+    await h.click('[data-role="x"][data-pid="' + target + '"]');
+    for (const id of ids) if (id !== target) await h.click('[data-role="det"][data-pid="' + id + '"]');
+    if (out) await h.screenshot({ path: path.join(out, "lobby-" + referee + ".png") });
+    await h.click("[data-net=start]");
+    for (const p of [h, a, b]) await p.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
+    const done = await playUntilOver({ h, a, b }, opts);
+    await h.waitForTimeout(800);
+    const summary = [];
+    for (const [n, p] of [["h", h], ["a", a], ["b", b]]) {
+      const r = await p.evaluate(() => {
+        const c = FY.UI.controller, s = c.s, sess = FY.Net.session;
+        return { pending: s.pending, winner: s.winner, reason: s.reason, moves: s.log.length, entries: sess.entries.length, audit: sess.audit, problem: sess.problem || null, view: c.view, humanX: c.humanX };
+      });
+      summary.push(n + ": " + JSON.stringify(r));
+      if (r.problem) errors.push(referee + " " + n + ": " + r.problem);
+      if (r.pending !== "over") errors.push(referee + " " + n + ": game not over");
+      if (referee === "verified" && (!r.audit || !r.audit.ok)) errors.push(referee + " " + n + ": audit missing or failed " + JSON.stringify(r.audit));
+    }
+    const lens = new Set(summary.map((l) => JSON.parse(l.slice(3)).entries));
+    if (lens.size !== 1) errors.push(referee + ": devices disagree on the log length");
+    console.log(referee + " game (Mr. X = " + xPlayer + "):", done ? "finished" : "DID NOT FINISH");
+    summary.forEach((l) => console.log("  " + l));
+    if (out) { await a.screenshot({ path: path.join(out, "online-" + referee + "-a.png") }); await h.screenshot({ path: path.join(out, "online-" + referee + "-h.png") }); }
+    for (const p of [h, a, b]) await p.close();
+  }
+
+  await game("verified", "a", { reloadGuest: true, reloadHost: true });
+  await game("trusted", "b", { reloadGuest: true });
+  await game("verified", "h", {});
+  await browser.close();
+  srv.close();
+  if (errors.length) { console.error("FAILURES:\n" + errors.join("\n")); process.exit(1); }
+  console.log("Online smoke test passed");
+})().catch((e) => { console.error(e); process.exit(1); });

@@ -2,7 +2,9 @@
    settings, one-time tips and saved games. */
 (function (FY) {
   "use strict";
-  var P = FY.CONFIG.storagePrefix;
+  // ?profile=name keeps separate storage per tab (used by the multi-player tests).
+  var profile = (location.search.match(/[?&]profile=([a-z0-9]+)/i) || [])[1];
+  var P = FY.CONFIG.storagePrefix + (profile ? profile + "." : "");
 
   function get(key, fallback) {
     try {
