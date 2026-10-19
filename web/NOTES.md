@@ -103,3 +103,72 @@ Optional official variants, left out by default:
 `web-prototype/index.html` is a single file of about 1,170 lines. It builds a **procedurally generated grid graph** rather than the repo's. It includes PeerJS 1.5.4 from jsDelivr, a canvas terrain painter, SVG pan/zoom, solo AI, hints and host-as-referee multiplayer. These are what I will keep and adapt.
 
 The uploaded zip contained only `index.html`. There was no `map-preview.png`, so the terrain style follows the description in the brief.
+
+## Product plan (agreed additions to the brief)
+
+### Two views on mobile
+- A bottom tab bar switches between **Play** and **Map**. On wide screens they sit side by side.
+- **Play** shows:
+  - the turn banner, round, and countdown to the next reveal
+  - your tickets
+  - your legal moves as large cards (destination plus transport)
+
+  Tapping a card moves you, so a full game can be played without the map.
+  - Each card can carry a learning cue, for example "this ferry needs a black ticket".
+  - "Show on map" jumps to the move.
+- **Map** is the full pan/zoom board. Choosing a card highlights the route there, and tapping a station opens the same move card.
+
+### Game master (online)
+- The host is always the **game master** and picks a seat:
+  - **Mr. X**
+  - **a detective** (controlling one or more pawns)
+  - **not playing**
+- In the lobby the game master gives out roles: who is Mr. X, and which detective pawns each player controls. There is also a "randomise" option.
+- During play the game master can pause, hand a disconnected player's pawns to someone else, and end the game.
+
+### Secrecy model (works for every game-master seat)
+- Mr. X's position lives **only on Mr. X's device**. When the game master plays Mr. X, that device is the host's, as in the brief.
+- The game master's device is the referee for public state:
+  - turn order
+  - ticket counts
+  - detective moves, which it validates fully
+  - the round log
+- Mr. X's device validates its own move against the public state.
+- On each move Mr. X's device sends only:
+  - the ticket used
+  - the station, on reveal rounds only
+  - a commitment `SHA-256(station + round + secret salt)`
+- After every detective move, the referee asks Mr. X's device whether he was caught or is now trapped, and waits for the answer.
+- At game end Mr. X's device reveals the full route and salts. Every device then re-checks:
+  - the commitments
+  - adjacency
+  - tickets
+  - occupancy
+  - the capture and trap answers
+
+  A dishonest Mr. X client is caught and flagged.
+- If Mr. X disconnects, the game pauses until he reconnects. The reconnect token is stored on his device.
+
+### Activity history
+- **Current session (main feature):** a live, round-by-round activity view for everyone:
+  - every detective move (pawn, from, to, ticket)
+  - Mr. X's tickets and reveals
+  - double moves
+  - skipped (stuck) pawns
+  - joins, leaves and reassignments
+
+  It can be filtered by player and shows per-player stats (tickets used, distance from Mr. X at each reveal). When the game ends, Mr. X's route fills in and a step-through replay plays on the map.
+- **Saving:**
+  - The game master's device autosaves the session to `localStorage` so the game resumes after a reload.
+  - The game master can **export the session file** (JSON) and import it later to resume or replay.
+  - Mr. X's secret part is exported separately from Mr. X's device, so the game master's file never contains hidden information during play.
+
+### Hints
+- **Learning tips: on by default.**
+  - Short, contextual explanations of the rules, such as what a reveal round is, why a move is unavailable, how double moves and black tickets work, and that detectives' tickets go to Mr. X.
+  - Each tip shows once.
+  - They can be turned off in settings or by the game master.
+- **Tactical hints: off by default.**
+  - The overlay of possible Mr. X stations (the brief's Hints toggle), the coverage dots, and Mr. X's danger tint.
+  - The player turns them on in solo play. Online, the game master allows or forbids them.
+  - Detective hints use public information only.
