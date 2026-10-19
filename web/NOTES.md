@@ -30,8 +30,15 @@ Each of the 200 entries has `number` 0-199.
 
 ### Data problems found
 
-1. **Two asymmetric taxi edges.** 13→24 is listed but 24→13 is not. 14→13 is listed but 13→14 is not. The bus and underground lists are symmetric. In the generator I will symmetrise (union of both directions) and log the fix. Station 13's list is `[4, 23, 24]`, station 24's is `[37, 38]` and station 14's is `[13, 15, 25]`. I need to confirm the intended edges here (see open questions).
-2. **No ferry edges exist in the repo.** The Scala game has no ferry concept. `TicketType` has only Taxi/Bus/Underground/Black, and the Black ticket in the repo works on any normal edge instead of on ferries.
+These were checked against the published rules and an independent, MIT-licensed station/connection dataset, [AlexElvers/scotland-yard-data](https://github.com/AlexElvers/scotland-yard-data). The dataset was used only to diff against; nothing was copied from it. Apart from the items below, the repo's taxi, bus and underground edges match it exactly.
+
+1. **Taxi 13-24 was one-way.** It is listed only from 13 and confirmed by the dataset. **Made two-way.**
+2. **Taxi 13-14 was one-way.** It is listed only from 14. Wikipedia notes this taxi line was removed on later boards, though older data still has it. **Removed**, to match the current board. The 13-14 *bus* link stays, so no station loses access.
+3. **Taxi 58-75 was missing** in both directions. It is in the dataset. **Added.**
+4. **Ferries were missing.** The repo has no ferry concept, and its Black ticket works on any normal edge. Both the dataset and the rulebook (example ferry move 157 to 115) give **three ferry links along the river: 108-115, 115-157 and 157-194.** **Added** as a separate `ferry` edge type, usable only by Mr. X with a black ticket.
+5. **Already current: 198-199** is a taxi link (early boards had a bus there).
+
+The result is `data/graph.json`, built by `tools/build-graph.mjs` and checked by `tools/validate-graph.mjs`. It has 199 stations: 345 taxi, 99 bus, 20 underground and 3 ferry links. It is symmetric and connected without ferries, and has no dead stations.
 
 ## Rules implemented in the repo
 
@@ -41,7 +48,7 @@ Each of the 200 entries has `number` 0-199.
 | Reveal rounds | `MRX_VISIBLE_ROUNDS = (3, 8, 13, 18, 24)`, checked against the round just completed. | `GameModel`, `MoveCommand.updateMrXVisibility` |
 | Turn order | Mr. X first, then Dt1..DtN, round-robin. `totalRound = ceil(round / nPlayers)`. | `GameModel` |
 | Players | 1 Mr. X plus a configurable number of detectives. The initializer takes `nPlayers`, default 3. | `GameInitializer` |
-| Detective tickets | Taxi 11, Bus 8, Underground 4. The official board uses 10 taxi. | `GameInitializer` |
+| Detective tickets | Taxi 11, Bus 8, Underground 4. This matches the current Ravensburger rules; the older Milton Bradley rules give 10 taxi. | `GameInitializer` |
 | Mr. X tickets | Taxi 99, Bus 99, Underground 99, **Black 5**, a fixed number independent of detective count. | `GameInitializer`, `MrX` |
 | Double moves | **Not implemented.** | |
 | Ticket handover | **Not implemented.** Detectives' spent tickets do not go to Mr. X. | `MoveCommand` |
@@ -59,27 +66,40 @@ Possible defects in the repo, which I will not copy:
 - A detective can only be stuck by ticket exhaustion, not by being blocked by other detectives.
 - Mr. X has no stuck check, so detectives cannot win by trapping him.
 
-## Differences between the repo and the brief
+## Official rules check
 
-| Brief | Repo | Plan |
-|---|---|---|
-| Mr. X: taxi 4, bus 3, underground 3 | 99 each | Use the brief (official). All values live in one `CONFIG` object. |
-| 2 double moves | none | Add. |
-| Black tickets = number of detectives | 5 fixed | Use the brief. |
-| Ferries need a black ticket | no ferries | Add ferry edges (see open questions). |
-| Detectives' tickets go to Mr. X | no | Add. |
-| Detectives win by trapping Mr. X | no | Add. |
-| Detective tickets | taxi 11, bus 8, underground 4 | Keep as defaults and put them in `CONFIG`. Official is 10/8/4. |
-| 2-6 players | 1 Mr. X + configurable detectives | Use the brief. |
+Sources:
+- [Ravensburger rulebook as transcribed on RulesPal](https://rulespal.com/scotland-yard/rulebook)
+- [Ultra Board Games](https://ultraboardgames.com/scotland-yard/game-rules.php)
+- [Transcribed classic English rules](https://gist.github.com/49ca696612413e06e45da914e6e07bc3)
+- [Wikipedia](https://en.wikipedia.org/wiki/Scotland_Yard_(board_game))
 
-Where the repo and the brief agree (24 rounds, reveals after 3/8/13/18/24, 199 stations), I keep them as they are.
+Editions disagree on some numbers. Fog Yard follows the brief wherever it sets a value, and the official rules otherwise. Every value sits in one `CONFIG` object.
 
-## Open questions before Step 2
+| Rule | Official rules | Repo | Fog Yard default |
+|---|---|---|---|
+| Length | The travel log has 24 moves. Classic rules say Mr. X wins after the 24th move. The Ravensburger text says "22 rounds" but still lists a reveal at move 24, which looks like an inconsistency. | 24 | **24 rounds** |
+| Reveals | After moves 3, 8, 13, 18 and 24. Mr. X's marker stays until his next move. His start is never logged. | same | **3, 8, 13, 18, 24** |
+| Detective tickets | 11/8/4 (current Ravensburger) or 10/8/4 (classic) | 11/8/4 | **11 / 8 / 4** |
+| Mr. X tickets | Classic: taxi 4, bus 3, underground 3, plus whatever detectives spend. Ravensburger: draws from a general pile. | 99 each | **4 / 3 / 3, plus detectives' spent tickets** (brief) |
+| Black tickets | 5 in the box. Some rule versions give one per detective. | 5 | **= number of detective pawns** (brief) |
+| Double moves | 2, discarded after use, at most one per turn. If the first half lands on a reveal round, Mr. X shows himself there and then makes the second move. He cannot end either half on a detective. | none | **2, one per turn, reveal on the matching half** |
+| Ferry | Mr. X only, black ticket only | none | **same** |
+| Black ticket | Replaces any ticket and hides the transport used | any edge | **same, plus ferry** |
+| Occupancy | Pieces may not end on an occupied station. On a bus or underground route a piece may pass over occupied stations; Fog Yard edges are direct, so this is automatic. | detectives only | **No two detectives share a station. Mr. X cannot move onto a detective.** |
+| Every piece must move | yes | yes | **yes** |
+| Stuck detective | Stays put, still blocks its station, and is skipped | ticket check only | **Skipped if it has no legal move (tickets or blocked)** |
+| Detectives win | A detective ends a move on Mr. X, or Mr. X has no legal move | landing only | **landing or trapping** |
+| Mr. X wins | Survives the last move, or no detective can move | same | **same** |
+| Players | 3-6 players, always 5 detective pawns split between the detective players (classic). Ravensburger fills in with "Bobbies" instead. | n players | **2-6 players. Detective pawns = `CONFIG.detectivePawns` (default 5), shared out between the detective players.** Bobbies are not used. |
+| Start positions | 29 start cards in separate pools | 16 detective, 13 Mr. X (and the last card is never drawn) | **Repo pools, uniformly drawn, no repeats** |
 
-1. **Ferries.** The repo has none. The official board has four ferry links, which need a black ticket. I would add them to `graph.json` as a separate `ferry` edge type, in the chain 194-157-115-108-100, which are all existing stations in the repo's graph. The other choice is to invent ferry links on the original layout. I recommend the official chain, written in the notes as an addition not derived from the repo.
-2. **The two asymmetric taxi edges.** Treat 13-24 and 13-14 as real, or drop them? Connectivity does not depend on them, so this is a judgement call. I recommend dropping neither unless you know they are errors: keeping both makes the edge list symmetric by union, and I cannot verify against the official board from here.
-3. **Prototype.** The zip contained only `index.html`, with no `map-preview.png`. I copied it to `/web-prototype/index.html`. For Step 3 I will work from the prototype's procedural painter, and use the style description in the brief for the terrain. If you have the preview image, please add it.
+Optional official variants, left out by default:
+- Mr. X may not pass over pawns.
+- Mr. X may reveal voluntarily in exchange for tickets.
 
 ## Note on the prototype
 
 `web-prototype/index.html` is a single file of about 1,170 lines. It builds a **procedurally generated grid graph** rather than the repo's. It includes PeerJS 1.5.4 from jsDelivr, a canvas terrain painter, SVG pan/zoom, solo AI, hints and host-as-referee multiplayer. These are what I will keep and adapt.
+
+The uploaded zip contained only `index.html`. There was no `map-preview.png`, so the terrain style follows the description in the brief.
