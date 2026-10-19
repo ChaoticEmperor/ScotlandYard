@@ -1,4 +1,4 @@
-/* Shadow Line: every tunable rule and setting lives here. Saved games keep a copy of the rule
+/* Find Mr. X: every tunable rule and setting lives here. Saved games keep a copy of the rule
    values they started with, so changing this file never breaks a game in progress. */
 (function (FY) {
   "use strict";

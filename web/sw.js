@@ -1,4 +1,4 @@
-/* Shadow Line offline cache. After one visit with internet, the whole site (and the pinned PeerJS
+/* Find Mr. X offline cache. After one visit with internet, the whole site (and the pinned PeerJS
    and font files from jsDelivr) loads without a connection: solo play works fully offline.
    Online games still need internet for the PeerJS server.
    VERSION and FILES are written by tools/package.py; a new deploy brings a new VERSION, which

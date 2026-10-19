@@ -1,4 +1,4 @@
-/* Shadow Line: board model built from window.FY_DATA (graph.json + layout.json). */
+/* Find Mr. X: board model built from window.FY_DATA (graph.json + layout.json). */
 (function (FY) {
   "use strict";
 

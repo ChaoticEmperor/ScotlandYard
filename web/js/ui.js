@@ -1,4 +1,4 @@
-/* Shadow Line user interface: menus, solo setup, the Play / Map / Log views, move cards with
+/* Find Mr. X user interface: menus, solo setup, the Play / Map / Log views, move cards with
    learning and tactical cues, the travel log, tips, the end screen, replay and dialogs.
    Online play (net.js) reuses the same game screen through FY.UI.enterGame(controller). */
 (function (FY) {
@@ -18,15 +18,17 @@
 
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function tkDot(tk, label) { return '<span class="tkd bg-' + tk + '">' + (label || TK[tk].s) + "</span>"; }
-  function detName(i) { return "D" + (i + 1); }
+  // A detective's name in text: the player's alias (or name) online, D1, D2… in solo games
+  // and for computer-played pieces. It is user text, so escape it when building HTML.
+  function detName(i) { return (ctl && ctl.pieceName && ctl.pieceName(i)) || "D" + (i + 1); }
   // Role names with player names and aliases: XN() for sentences ("Moriarty used a bus"),
-  // xLabel() / detLabel() with the player's name ("Moriarty (Flora)", "D2 · Holmes (Sam)").
+  // xLabel() / detLabel() with the player's name ("Moriarty (Flora)", "Holmes (Sam)").
   function XN() { return ctl && ctl.xShort ? ctl.xShort() : "Mr. X"; }
   function xLabel() { return ctl && ctl.xLabel ? ctl.xLabel() : "Mr. X"; }
   // What a detective's piece shows on the map: the player's initials online ("Da", "PD"),
   // D1, D2… in solo games or for computer-played pieces.
-  function pieceLabel(i) { return (ctl && ctl.pieceInitials && ctl.pieceInitials(i)) || detName(i); }
-  function detLabel(i) { var o = ctl && ctl.detOwnerLabel ? ctl.detOwnerLabel(i) : ""; return detName(i) + (o ? " · " + o : ""); }
+  function pieceLabel(i) { return (ctl && ctl.pieceInitials && ctl.pieceInitials(i)) || "D" + (i + 1); }
+  function detLabel(i) { return (ctl && ctl.pieceFullName && ctl.pieceFullName(i)) || detName(i); }
   function wide() { return window.matchMedia("(min-width: 900px)").matches; }
 
   // ---------- theme ----------
@@ -155,7 +157,6 @@
     if (c.opts.mode === "solo") S.set("resume", c.s.pending === "over" ? null : { kind: "solo" });
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
     show("game");
-    [300, 1500, 5000].forEach(function (ms) { setTimeout(checkOverlay, ms); });
     ensureMaps();
     if (mini) { mini.svg.remove(); mini = null; }
     setTab(wide() ? "play" : "play");
@@ -362,7 +363,7 @@
     if (who === "det") h += pickerRow();
     if (who) {
       var groups = groupByStation(currentOptions());
-      h += '<div class="sect">' + (who === "x" ? "Where to?" : "Moves for " + detName(selectedDet())) + "</div>";
+      h += '<div class="sect">' + (who === "x" ? "Where to?" : "Moves for " + esc(detName(selectedDet()))) + "</div>";
       h += groups.length ? '<div class="moves">' + groups.map(function (g) { return moveCard(g); }).join("") + "</div>" : '<div class="empty">No legal moves.</div>';
     }
     h += '<div class="sect">Detectives</div>' + detPanel(who);
@@ -422,10 +423,11 @@
       var isMine = ctl.myDets.indexOf(i) >= 0, can = mine.indexOf(i) >= 0;
       var moved = s.pending === "det" || s.pending === "probe" ? s.moved[i] : false;
       var owner = ctl.detOwnerLabel ? ctl.detOwnerLabel(i) : "";
-      var count = owner && ctl.sess ? ctl.sess.seats.pawns.filter(function (id) { return id === ctl.sess.seats.pawns[i]; }).length : 1;
-      if (count > 1) owner += " · " + count + " pieces";
+      var seat = ctl.sess ? ctl.sess.seats.pawns[i] : null;
+      var count = seat && seat !== "ai" ? ctl.sess.seats.pawns.filter(function (id) { return id === seat; }).length : 1;
+      if (count > 1) owner = (owner ? owner + " · " : "") + count + " pieces";
       h += '<button class="piece' + (i === ui.sel && can ? " sel" : "") + (moved ? " done" : "") + '" data-det="' + i + '"' + (can ? "" : " disabled") + ">" +
-        '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + (i + 1) + "</span>" + detName(i) + " · " + d.pos +
+        '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + (i + 1) + "</span>" + esc(detName(i)) + " · " + d.pos +
         (moved ? " ✓" : "") + "</span>" + (owner ? '<span class="own">' + esc(owner) + "</span>" : "") +
         '<span class="tks"><span>' + tkDot("taxi") + " " + d.t.taxi + "</span><span>" + tkDot("bus") + " " + d.t.bus + "</span><span>" + tkDot("underground") + " " + d.t.underground + "</span></span></button>";
     });
@@ -535,7 +537,7 @@
     var here = piecesAt(n), mine = myTurn() === "det" ? ctl.myTurnDets() : [];
     var h = '<h2 class="disp">Station ' + n + "</h2>" +
       (here.length ? '<div class="plist">' + here.map(pieceHtml).join("") + "</div>" : "") +
-      here.filter(function (p) { return p.det != null && mine.indexOf(p.det) >= 0; }).map(function (p) { return '<button class="btn pri" data-pick="' + p.det + '">Move ' + detName(p.det) + "</button>"; }).join("") +
+      here.filter(function (p) { return p.det != null && mine.indexOf(p.det) >= 0; }).map(function (p) { return '<button class="btn pri" data-pick="' + p.det + '">Move ' + esc(detName(p.det)) + "</button>"; }).join("") +
       "<p>" + KIND[board.kind[n]] + (scene.piers[n] ? " and ferry pier" : "") + ".</p><ul>" +
       "<li>" + tkDot("taxi") + " Taxi to " + list("taxi") + "</li>";
     if (board.adj.bus[n].length) h += "<li>" + tkDot("bus") + " Bus to " + list("bus") + "</li>";
@@ -554,7 +556,7 @@
     var filters = [["all", "Everyone"], ["x", XN()]];
     s.dets.forEach(function (d, i) { filters.push(["d" + i, detName(i)]); });
     if (ctl.opts.mode !== "solo") filters.push(["sys", "Game"]);
-    filters.forEach(function (f) { h += '<button class="chip' + (ui.filter === f[0] ? " sel" : "") + '" data-filter="' + f[0] + '">' + f[1] + "</button>"; });
+    filters.forEach(function (f) { h += '<button class="chip' + (ui.filter === f[0] ? " sel" : "") + '" data-filter="' + f[0] + '">' + esc(f[1]) + "</button>"; });
     h += "</div>";
     var turns = {}, order = [];
     s.history.forEach(function (e) {
@@ -573,7 +575,7 @@
       var xs = turns[t].filter(function (e) { return e.k === "x"; }), rev = xs.some(function (e) { return e.rev != null; });
       var title = t === 0 ? "Start" : "Turn " + t + (xs.length ? " · move" + (xs.length > 1 ? "s " + xs[0].move + "–" + xs[xs.length - 1].move : " " + xs[0].move) : "");
       h += '<div class="turn' + (rev ? " rev" : "") + '"><h4>' + title + (rev ? " ★ reveal" : "") + "</h4><ul>";
-      var skips = items.filter(function (e) { return e.k === "skip"; }).map(function (e) { return detName(e.i); });
+      var skips = items.filter(function (e) { return e.k === "skip"; }).map(function (e) { return esc(detName(e.i)); });
       items.forEach(function (e) { if (e.k !== "skip") h += logItem(e, route); });
       if (skips.length) h += '<li class="sys">' + skips.join(", ") + (skips.length > 1 ? " could not move and were" : " could not move and was") + " skipped.</li>";
       h += "</ul></div>";
@@ -590,8 +592,8 @@
         (pos ? ' <span class="ar">→</span> <b>' + pos + "</b>" : ' <span class="ar">→ ?</span>') + (e.rev != null ? " ★ seen" : "") + "</li>";
     }
     if (e.k === "d") return '<li><span class="who" style="color:' + DCOL[e.i % DCOL.length] + '">' + esc(detLabel(e.i)) + "</span>" + tkDot(e.tk) + " " + e.from + ' <span class="ar">→</span> ' + e.to + "</li>";
-    if (e.k === "skip") return '<li class="sys">' + detName(e.i) + " could not move and was skipped.</li>";
-    if (e.k === "caught") return '<li class="win">' + detName(e.i) + " caught " + esc(XN()) + " at " + e.pos + "!</li>";
+    if (e.k === "skip") return '<li class="sys">' + esc(detName(e.i)) + " could not move and was skipped.</li>";
+    if (e.k === "caught") return '<li class="win">' + esc(detName(e.i)) + " caught " + esc(XN()) + " at " + e.pos + "!</li>";
     if (e.k === "trapped") return '<li class="win">' + esc(XN()) + " was trapped.</li>";
     if (e.k === "end") return '<li class="win">' + esc(e.reason) + "</li>";
     if (e.k === "sys") return '<li class="sys">' + esc(e.text) + "</li>";
@@ -658,7 +660,7 @@
   function outcome() {
     var s = ctl.s, v = ctl.verdict;
     var winner = v ? "det" : s.winner;
-    var reason = v ? XN() + " broke the rules: " + v.problems[0] + "." : s.reason.replace(/Mr\. X/g, XN());
+    var reason = v ? XN() + " broke the rules: " + v.problems[0] + "." : s.reason.replace(/Mr\. X/g, XN()).replace(/^Detective (\d+) caught/, function (m, k) { var n = ctl.pieceName && ctl.pieceName(k - 1); return n ? n + " caught" : m; });
     return { winner: winner, title: winner === "x" ? XN() + " wins" : winner === "det" ? "The detectives win" : "Game ended", reason: reason };
   }
   function showEnd() {
@@ -688,7 +690,7 @@
     "double-use": ["Double move", "Pick your second station next. Both moves use a ticket and fill two places in your travel log."],
     "handover": ["Tickets change hands", "Every ticket a detective spends goes to Mr. X, so he never runs out."],
     "stuck": ["Stuck detective", "A detective with no ticket for any route from its station misses its turn. If no detective can move, Mr. X wins."],
-    "offline-ready": ["Works offline", "Shadow Line is saved on this device: solo games now load without internet. Online games still need a connection. Tip: add it to your home screen."],
+    "offline-ready": ["Works offline", "Find Mr. X is saved on this device: solo games now load without internet. Online games still need a connection. Tip: add it to your home screen."],
     "select": ["Detective selected", "Its moves glow on the map and are listed on the Play tab. Tap another of your detectives to switch."],
     "unavailable": ["Not reachable", "Each ticket follows its own lines: taxi (yellow streets), bus (teal lanes) and underground (red dashes)."]
   };
@@ -725,10 +727,10 @@
       '<button class="btn pri" data-act="close">Got it</button>');
   }
   function showAbout() {
-    overlay('<h2 class="disp">About Shadow Line</h2>' +
-      "<p>Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Shadow Line is an unofficial fan project and is not affiliated with Ravensburger.</p>" +
+    overlay('<h2 class="disp">About Find Mr. X</h2>' +
+      "<p>Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Find Mr. X is an unofficial fan project and is not affiliated with Ravensburger.</p>" +
       "<p>Map data © OpenStreetMap contributors, available under the Open Database License. The illustrated board, station layout and landmark icons are original.</p>" +
-      '<p class="note">' + (navigator.serviceWorker && navigator.serviceWorker.controller ? "Saved for offline play on this device." : "Open once with internet to save Shadow Line for offline play.") + "</p>" +
+      '<p class="note">' + (navigator.serviceWorker && navigator.serviceWorker.controller ? "Saved for offline play on this device." : "Open once with internet to save Find Mr. X for offline play.") + "</p>" +
       '<p class="note">Online play connects players directly using PeerJS. No game data is stored on a server.</p>' +
       '<button class="btn pri" data-act="close">Close</button>');
   }
@@ -807,46 +809,6 @@
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLayers(); });
   window.addEventListener("resize", function () { if (ctl) { if (wide() && ui.tab === "map") setTab("play"); render(); } });
 
-  // Hosting badges (e.g. "Powered by Netlify" on free sites) float over the bottom tab bar.
-  // If something that isn't ours covers a tab, lift the bar clear of it.
-  function checkOverlay() {
-    if ($("#game").classList.contains("hidden")) return;
-    var bar = $("#tabs"), ours = { menu: 1, setup: 1, online: 1, game: 1, sheet: 1, overlay: 1 };
-    document.body.classList.remove("overlay-room");
-    var br = bar.getBoundingClientRect(), covered = false, room = 66;
-    // 1) Any fixed or sticky element that isn't ours and overlaps the bar (badges are usually
-    //    top-level, often with pointer-events off, so hit-testing alone can miss them).
-    [].forEach.call(document.querySelectorAll("body > *, html > *:not(head):not(body)"), function (el) {
-      if (ours[el.id] || el.tagName === "SCRIPT" || el.tagName === "STYLE" || el.tagName === "LINK") return;
-      var cs = getComputedStyle(el);
-      if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0) return;
-      var r = el.getBoundingClientRect();
-      if (r.width && r.height && r.left < br.right && r.right > br.left && r.top < br.bottom && r.bottom > br.top && (cs.position === "fixed" || cs.position === "sticky" || cs.position === "absolute")) {
-        covered = true;
-        room = Math.max(room, Math.min(160, Math.ceil(window.innerHeight - r.top + 8))); // lift the bar just above it
-      }
-    });
-    // 2) Hit-testing, for anything nested elsewhere.
-    if (!covered) [].forEach.call(bar.querySelectorAll("button"), function (b) {
-      var r = b.getBoundingClientRect();
-      if (!r.width) return;
-      [[0.5, 0.5], [0.85, 0.5], [0.5, 0.85]].forEach(function (f) {
-        var el = document.elementFromPoint(r.left + r.width * f[0], r.top + r.height * f[1]);
-        if (el && !bar.contains(el) && !$("#toast").contains(el) && !$("#sheet").contains(el) && !$("#overlay").contains(el)) covered = true;
-      });
-    });
-    document.body.style.setProperty("--overlay-room", room + "px");
-    document.body.classList.toggle("overlay-room", covered);
-  }
-  // Re-check whenever something is added to the page (badges are often injected late).
-  if (window.MutationObserver) {
-    var watchTop = new MutationObserver(function () { setTimeout(checkOverlay, 50); });
-    watchTop.observe(document.documentElement, { childList: true });
-    document.addEventListener("DOMContentLoaded", function () { watchTop.observe(document.body, { childList: true }); });
-    if (document.body) watchTop.observe(document.body, { childList: true });
-  }
-  window.addEventListener("resize", function () { setTimeout(checkOverlay, 100); });
-
   // ---------- boot ----------
   function boot() {
     applyTheme();
@@ -892,7 +854,7 @@
         w.addEventListener("statechange", function () {
           if (w.state !== "activated") return;
           if (!hadController) tip("offline-ready");
-          else toast("Shadow Line was updated", "Reload the page when it suits you to use the new version.");
+          else toast("Find Mr. X was updated", "Reload the page when it suits you to use the new version.");
         });
       });
     }).catch(function () {});

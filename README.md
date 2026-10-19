@@ -26,11 +26,11 @@ docker-compose up -d
 ## Background
 This is a project build during the "Software Engeneering" lecture at the HTWG Konstanz
 
-## Shadow Line (web version)
+## Find Mr. X (web version)
 
-`web/` contains **Shadow Line**, a mobile-first browser version of the game, playable solo or online with 2 to 8 players (Mr. X plus up to 7 detectives; more people can join to watch). It is a static site: plain HTML, CSS and JavaScript with no build step and no frameworks. The only external scripts are PeerJS 1.5.4 and the Oswald font, both from jsDelivr and pinned to exact versions.
+`web/` contains **Find Mr. X**, a mobile-first browser version of the game, playable solo or online with 2 to 8 players (Mr. X plus up to 7 detectives; more people can join to watch). It is a static site: plain HTML, CSS and JavaScript with no build step and no frameworks. The only external scripts are PeerJS 1.5.4 and the Oswald font, both from jsDelivr and pinned to exact versions.
 
-> Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Shadow Line is an unofficial fan project and is not affiliated with Ravensburger.
+> Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Find Mr. X is an unofficial fan project and is not affiliated with Ravensburger.
 >
 > Map data © OpenStreetMap contributors (ODbL). The illustrated board, station layout and landmark icons are original; no board artwork, scans or official station coordinates are used.
 

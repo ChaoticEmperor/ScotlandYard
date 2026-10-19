@@ -1,4 +1,4 @@
-/* Shadow Line game controller. Runs one game for this device: who controls which side, the
+/* Find Mr. X game controller. Runs one game for this device: who controls which side, the
    automatic steps (Mr. X's capture answers, trap detection, computer moves) and autosave.
    The UI reads ctl.s (public state), ctl.secret (only on Mr. X's device) and calls
    ctl.moveX / ctl.moveDet. The online layer replaces submit() to send events over the network. */

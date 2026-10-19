@@ -1,6 +1,6 @@
-# Shadow Line: repo investigation notes
+# Find Mr. X: repo investigation notes
 
-> The game was first called "Fog Yard". It was renamed **Shadow Line**: the taxi, bus and underground lines, and a fugitive moving unseen along them. Internal identifiers (`FY` namespace, `fogyard.` storage keys, `fogyard-` peer ids) keep the old name so saved games and online codes keep working across versions.
+> The game was first called "Fog Yard", then "Shadow Line". It is now **Find Mr. X**, which says what the game is. Internal identifiers (`FY` namespace, `fogyard.` storage keys, `fogyard-` peer ids) keep the old name so saved games and online codes keep working across versions.
 
 Source: `tim-koehler/ScotlandYard` (Scala, Apache-2.0). This fork keeps the LICENSE.
 Only the abstract station graph and rule constants are used. No artwork, coordinates, logos or branding are taken.
@@ -76,9 +76,9 @@ Sources:
 - [Transcribed classic English rules](https://gist.github.com/49ca696612413e06e45da914e6e07bc3)
 - [Wikipedia](https://en.wikipedia.org/wiki/Scotland_Yard_(board_game))
 
-Editions disagree on some numbers. Shadow Line follows the brief wherever it sets a value, and the official rules otherwise. Every value sits in one `CONFIG` object.
+Editions disagree on some numbers. Find Mr. X follows the brief wherever it sets a value, and the official rules otherwise. Every value sits in one `CONFIG` object.
 
-| Rule | Official rules | Repo | Shadow Line default |
+| Rule | Official rules | Repo | Find Mr. X default |
 |---|---|---|---|
 | Length | The travel log has 24 moves. Classic rules say Mr. X wins after the 24th move. The Ravensburger text says "22 rounds" but still lists a reveal at move 24, which looks like an inconsistency. | 24 | **24 rounds** |
 | Reveals | After moves 3, 8, 13, 18 and 24. Mr. X's marker stays until his next move. His start is never logged. | same | **3, 8, 13, 18, 24** |
@@ -88,7 +88,7 @@ Editions disagree on some numbers. Shadow Line follows the brief wherever it set
 | Double moves | 2, discarded after use, at most one per turn. If the first half lands on a reveal round, Mr. X shows himself there and then makes the second move. He cannot end either half on a detective. | none | **2, one per turn, reveal on the matching half** |
 | Ferry | Mr. X only, black ticket only | none | **same** |
 | Black ticket | Replaces any ticket and hides the transport used | any edge | **same, plus ferry** |
-| Occupancy | Pieces may not end on an occupied station. On a bus or underground route a piece may pass over occupied stations; Shadow Line edges are direct, so this is automatic. | detectives only | **No two detectives share a station. Mr. X cannot move onto a detective.** |
+| Occupancy | Pieces may not end on an occupied station. On a bus or underground route a piece may pass over occupied stations; Find Mr. X edges are direct, so this is automatic. | detectives only | **No two detectives share a station. Mr. X cannot move onto a detective.** |
 | Every piece must move | yes | yes | **yes** |
 | Stuck detective | Stays put, still blocks its station, and is skipped | ticket check only | **Skipped if it has no legal move (tickets or blocked)** |
 | Detectives win | A detective ends a move on Mr. X, or Mr. X has no legal move | landing only | **landing or trapping** |
@@ -350,3 +350,9 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 - **Initials.** Online, detective pieces show their player's initials instead of D1, D2: "David" becomes "Da", "Paul David" becomes "PD", using the alias if one is set. Clashes, or one player with several pieces, get a number ("Jo1", "Jo2"). Solo games and computer-played pieces keep D1…D7. Lists and logs still say "D2 · David".
 - **Mixed human and computer detectives.** When there are more pieces than detective players, the game master chooses *Shared by players* (classic) or *Played by the computer*. Each player then keeps one piece, and the game master's device plays the rest. Tested with 2 human and 3 computer detectives; the audit passes.
 - **Badge detection.** The game looks for any top-level fixed, sticky or absolute element that isn't its own and overlaps the tab bar. Hit-testing alone missed badges with `pointer-events: none`. It re-checks when such elements are added, and lifts the bar by exactly the covered height.
+
+## Aliases in text, badge workaround removed, renamed to Find Mr. X
+
+- **Aliases in text.** Online, detectives now go by their player's alias (or name, if no alias is set) everywhere text names them. Examples: "Holmes to move", "Moves for Holmes", "Holmes caught Moriarty", and the Log filters. The travel log and station info add who plays the piece: "Holmes (David)", "Sam (you)". One player with several pieces, or two players with the same name, get numbers ("Holmes 1", "Holmes 2"). Computer pieces and solo games keep D1, D2. Names are user text, so every HTML use is escaped. The seats dialog and system notes keep D1, D2, because they are about the seat, not the person.
+- **Badge workaround removed.** The owner turned the "Powered by Netlify" badge off in the Netlify settings, so the tab-bar lifting code and its test are gone. If the badge comes back, it can be switched off again under Project configuration → General.
+- **Name.** The game is now called **Find Mr. X**. Internal ids (`FY`, `fogyard.` keys, `fogyard-` peer ids) are unchanged, so saved games and codes keep working.
