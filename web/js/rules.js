@@ -123,7 +123,7 @@
     if (!stuck.every(Boolean)) return;
     if (s.rules.stuckDetectivesLose) {
       stuck.forEach(function (x, i) { s.history.push({ k: "skip", i: i, move: s.log.length, turn: s.turn }); });
-      endGame(s, "x", "No detective can move, so Mr. X escapes.");
+      endGame(s, "x", s.log.length >= s.rules.rounds ? "Mr. X stayed hidden for all " + s.rules.rounds + " moves." : "No detective can move, so Mr. X escapes.");
     } else endDetPhase(board, s);
   }
 

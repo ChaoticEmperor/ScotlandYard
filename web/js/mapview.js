@@ -23,7 +23,10 @@
     this.build();
     this.VB = { x: 0, y: 0, w: board.W, h: board.H };
     this.fit();
-    this.gestures();
+    if (this.opts.static) {
+      var me = this;
+      this.svg.addEventListener("click", function (e) { var u = me.toUser(e.clientX, e.clientY); me.onTap(me.stationAt(u.x, u.y)); });
+    } else this.gestures();
     var self = this;
     this._ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(function () { self.resize(); }) : null;
     if (this._ro) this._ro.observe(container); else window.addEventListener("resize", function () { self.resize(); });
@@ -240,15 +243,35 @@
     });
   };
   MapView.prototype.setTokens = function (tokens) {
-    // tokens: [{id, n, label, color, ring, ghost}]
-    this.clear(this.tokLayer);
-    var self = this;
+    // tokens: [{id, n, label, color, ring, text, ghost, halo, tag}]; kept by id so moves glide.
+    var self = this, keep = {};
+    this.toks = this.toks || {};
     tokens.forEach(function (t) {
       if (!t.n) return;
-      var p = self.b.pos[t.n], g = el("g", { "class": "tok" + (t.ghost ? " ghost" : ""), transform: "translate(" + p.x + " " + p.y + ")" }, self.tokLayer);
-      el("circle", { r: 15, fill: t.color, stroke: t.ring || "#fff", "stroke-width": 3 }, g);
-      var tx = el("text", { "class": "tokt", fill: t.text || "#fff" }, g);
-      tx.textContent = t.label;
+      keep[t.id] = 1;
+      var p = self.b.pos[t.n], key = JSON.stringify([t.label, t.color, t.ring, t.text, t.ghost, t.halo, t.tag]);
+      var g = self.toks[t.id];
+      if (!g) { g = self.toks[t.id] = el("g", { "class": "tok" }, self.tokLayer); g.setAttribute("transform", "translate(" + p.x + " " + p.y + ")"); }
+      if (g._key !== key) {
+        self.clear(g); g._key = key;
+        g.setAttribute("class", "tok" + (t.ghost ? " ghost" : ""));
+        if (t.halo) el("circle", { r: 21, "class": "tokhalo" }, g);
+        el("circle", { r: 15, fill: t.color, stroke: t.ring || "#fff", "stroke-width": 3, "stroke-dasharray": t.ghost ? "4 3" : "none" }, g);
+        var tx = el("text", { "class": "tokt", fill: t.text || "#fff" }, g);
+        tx.textContent = t.label;
+        if (t.tag) {
+          var w = String(t.tag).length * 5.6 + 8;
+          el("rect", { x: -w / 2, y: 17, width: w, height: 12, rx: 6, "class": "toktagbg" }, g);
+          var tg = el("text", { y: 23.5, "class": "toktag" }, g);
+          tg.textContent = t.tag;
+        }
+      }
+      g.style.transform = "translate(" + p.x + "px, " + p.y + "px)";
+      g.removeAttribute("transform");
+      self.tokLayer.appendChild(g); // keep drawing order as given
+    });
+    Object.keys(this.toks).forEach(function (id) {
+      if (!keep[id]) { self.tokLayer.removeChild(self.toks[id]); delete self.toks[id]; }
     });
   };
 
