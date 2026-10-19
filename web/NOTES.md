@@ -232,3 +232,40 @@ The board image is now an original illustrated city, built by `tools/city/`:
 - **Streets are the routes.** Every taxi link is a street, bus lanes run along the streets, and every block is lined with small oblique-view houses.
 - **Real geography** from OpenStreetMap: the Thames, parks, side streets beyond the network, and landmark positions shown with generic icons.
 - **Other styles.** The plain London render (`tools/london/rasterize.cjs`, written to `assets/map-london.jpg`) and the painted diorama fallback (used when no `map.jpg` exists) remain available.
+
+## What was built (implementation notes)
+
+| Area | Files | Notes |
+|---|---|---|
+| Rules | `js/config.js`, `js/rules.js` | A pure reducer over events: Mr. X move, detective move, capture answer, trapped. Every rule constant is in `FY.CONFIG.rules`. Saved games carry their rule snapshot. |
+| AI | `js/ai.js` | **Mr. X** scores destinations by: distance from detectives, how many detectives could reach them, safe exits, how much the ticket blurs the detectives' possible-station set, and ticket scarcity. Doubles are kept for escapes. **Detectives** minimise Mr. X's safe escapes from his possible *next* stations, plus team distance, with ticket management and hub positioning before reveals. Levels: easy, normal, hard. |
+| Solo play | `js/game.js` | Controller for human vs computer; autosaves after every event (*Continue your game*). |
+| UI | `js/ui.js`, `css/` | **Play** (move cards with learning and tactical cues, detective picker, inset map), **Map**, **Log** (by turn, filters, stats), travel log, tips, settings, help, About with attribution, end screen with rematch and replay. |
+| Online | `js/net.js` | Game master hub over PeerJS; signed shared log re-verified by every device; verified and trusted referee modes; seats; reconnect and resume. |
+
+### Measured AI balance
+
+From `tests/test.mjs` and 200-game runs; the AI plays both sides.
+- With 5 detectives, the detectives win about **23%** against a normal or hard Mr. X and **72%** against an easy one.
+- With 3 detectives they win about **7%** against normal or hard, and about **50%** against easy.
+- Against a Mr. X who moves at random, AI detectives win 99%+.
+
+Humans as detectives get easy, normal or hard to choose from.
+
+### Test status
+
+| Test | What it covers | Result |
+|---|---|---|
+| `tests/test.mjs` | Station graph (symmetry, connectivity, dead stations); all 199 × 4 ticket move generators for detectives and Mr. X, ferries black-only; illegal events rejected; AI games replay from their logs with invariants holding | 100k+ checks, 0 failures |
+| `tests/protocol.mjs` | Signed games as three parties. Detects: a piece moved by the wrong player, a move changed after signing, a forged signature, an altered revealed route, and Mr. X lying "not caught" (6/6) | 0 failures |
+| `tests/ui-smoke.cjs` | Solo games through the real page at 360, 390 and 1280 px; tactical hints, replay and rematch; no horizontal scroll | Pass |
+| `tests/online-smoke.cjs` | Three-player games: verified with guest Mr. X (guest reload + host reload/resume), trusted with guest Mr. X, verified with host Mr. X | Pass, with all devices agreeing and audits passing |
+| `FY_TRANSPORT=peer node tests/online-smoke.cjs` | A full verified game over **real PeerJS/WebRTC** with a guest rejoin | Pass |
+
+### Known limitations
+
+- **Key exchange goes through the game master.** Public keys reach every device via the game master's device, so a malicious game master could swap keys in the lobby. The 🔑 fingerprints let players check for this out loud.
+- **Late detection of Mr. X's lies.** In verified mode a lie by Mr. X is proven only at the end of the game, which is inherent without a third party. A Mr. X who disconnects for good stalls a verified game. Trusted mode lets the game master take over instead.
+- **Offline relay.** The game master's device must stay open: it relays the log. It autosaves and can resume after a reload.
+- **Peer-to-peer connectivity.** Some networks block peer-to-peer connections; configure a TURN server in `FY.CONFIG.net.iceServers`.
+- **Street texture.** The illustrated map's side streets (outside the route network) come from OpenStreetMap, but the game's own streets are the station links, not real streets.
