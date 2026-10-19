@@ -152,6 +152,7 @@
     if (c.opts.mode === "solo") S.set("resume", c.s.pending === "over" ? null : { kind: "solo" });
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
     show("game");
+    [300, 1500, 5000].forEach(function (ms) { setTimeout(checkOverlay, ms); });
     ensureMaps();
     if (mini) { mini.svg.remove(); mini = null; }
     setTab(wide() ? "play" : "play");
@@ -802,6 +803,24 @@
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLayers(); });
   window.addEventListener("resize", function () { if (ctl) { if (wide() && ui.tab === "map") setTab("play"); render(); } });
+
+  // Hosting badges (e.g. "Powered by Netlify" on free sites) float over the bottom tab bar.
+  // If something that isn't ours covers a tab, lift the bar clear of it.
+  function checkOverlay() {
+    if ($("#game").classList.contains("hidden")) return;
+    var bar = $("#tabs"), covered = false;
+    document.body.classList.remove("overlay-room");
+    [].forEach.call(bar.querySelectorAll("button"), function (b) {
+      var r = b.getBoundingClientRect();
+      if (!r.width) return;
+      [[0.5, 0.5], [0.85, 0.5], [0.5, 0.85]].forEach(function (f) {
+        var el = document.elementFromPoint(r.left + r.width * f[0], r.top + r.height * f[1]);
+        if (el && !bar.contains(el) && !$("#toast").contains(el) && !$("#sheet").contains(el) && !$("#overlay").contains(el)) covered = true;
+      });
+    });
+    document.body.classList.toggle("overlay-room", covered);
+  }
+  window.addEventListener("resize", function () { setTimeout(checkOverlay, 100); });
 
   // ---------- boot ----------
   function boot() {

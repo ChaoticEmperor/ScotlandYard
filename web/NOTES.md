@@ -338,3 +338,9 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 - **It wouldn't fix drops.** A dropped player would have to re-scan, and the drops people see come from phones sleeping or switching apps, which a local link suffers from too.
 - **The real fix** for Mini-Militia-style play would be a small Android app wrapper (e.g. Capacitor) with local networking and a background service.
 - **Recommended now:** deploy the latest build (false "offline" fixes, screen kept on, any message restores a player). Use a TURN server only if specific networks still fail.
+
+## Small fixes after the rename
+
+- **Hosting badge.** Free Netlify sites show a floating "Powered by Netlify" badge that covered the Log tab. The game now checks whether anything not its own covers the tab bar, and if so lifts the bar clear (`body.overlay-room`). The badge itself can be turned off in Netlify under Project configuration → General → Powered by Netlify badge.
+- **"Spinner" on the map.** The selected piece's ring spun with `rotate()`, which on SVG turns around the map's centre, so the ring swung across the map. It now uses marching dashes and stays on the piece.
+- **Inherited CI removed.** The original project's GitHub workflow, which pushed to the upstream author's repository, was deleted.

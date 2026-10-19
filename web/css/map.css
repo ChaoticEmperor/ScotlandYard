@@ -24,5 +24,7 @@
 .fy-map .toktag { font: 700 8.5px/1 system-ui, sans-serif; fill: #fff; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .fy-map .hl.sel { fill: none; stroke: #fff; stroke-width: 3; stroke-dasharray: 5 3; }
 .fy-map .hl.cover { fill: rgba(64, 160, 255, .2); stroke: none; }
-@media (prefers-reduced-motion: no-preference) { .fy-map .tokhalo { animation: fy-spin 6s linear infinite; transform-origin: center; } }
-@keyframes fy-spin { to { transform: rotate(360deg); } }
+/* The selected piece's ring: dashes march around it. (No rotate(): on SVG that turns around the
+   map's centre, which made the ring swing across the map.) */
+@media (prefers-reduced-motion: no-preference) { .fy-map .tokhalo { animation: fy-march 1.2s linear infinite; } }
+@keyframes fy-march { to { stroke-dashoffset: -18; } }
