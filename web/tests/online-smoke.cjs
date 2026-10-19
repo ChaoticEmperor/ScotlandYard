@@ -29,12 +29,14 @@ function serve() {
 }
 
 (async () => {
+  // FY_TRANSPORT=peer plays over real PeerJS/WebRTC (needs internet; honours HTTPS_PROXY).
+  const peer = process.env.FY_TRANSPORT === "peer";
   const srv = await serve();
-  const base = "http://127.0.0.1:" + srv.address().port + "/index.html?transport=local&profile=";
+  const base = peer ? "file://" + path.join(web, "index.html") + "?profile=" : "http://127.0.0.1:" + srv.address().port + "/index.html?transport=local&profile=";
   const { chromium } = loadPlaywright();
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await ctx.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
+  const browser = await chromium.launch(peer && process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY } } : {});
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: peer });
+  if (!peer) await ctx.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
   const errors = [];
   async function open(name) {
     const page = await ctx.newPage();
@@ -65,6 +67,9 @@ function serve() {
       }
       if (opts.reloadHost && !resumed && moves >= 8) {
         resumed = true;
+        const saved = await pages.h.evaluate(() => { const v = localStorage.getItem("fogyard.h.host"); return v ? { len: v.length, over: JSON.parse(v).over, entries: JSON.parse(v).entries.length } : null; });
+        const keys = await pages.h.evaluate(() => Object.keys(localStorage).map((k) => k + ":" + localStorage.getItem(k).length));
+        if (!saved) console.log("  no host save; storage:", keys.join(" "));
         await pages.h.reload();
         await pages.h.click("#mOnline");
         await pages.h.click("[data-net=resume]");
@@ -120,9 +125,12 @@ function serve() {
     for (const p of [h, a, b]) await p.close();
   }
 
-  await game("verified", "a", { reloadGuest: true, reloadHost: true });
-  await game("trusted", "b", { reloadGuest: true });
-  await game("verified", "h", {});
+  if (peer) await game("verified", "a", { reloadGuest: true });
+  else {
+    await game("verified", "a", { reloadGuest: true, reloadHost: true });
+    await game("trusted", "b", { reloadGuest: true });
+    await game("verified", "h", {});
+  }
   await browser.close();
   srv.close();
   if (errors.length) { console.error("FAILURES:\n" + errors.join("\n")); process.exit(1); }
