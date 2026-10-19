@@ -297,3 +297,23 @@ The device remembers which game it is in (`resume` in storage). After a refresh:
 - **The game master** re-opens the same code, lobby or game, and players reconnect on their own.
 
 Leaving on purpose (*Leave game*, or *Leave* in the lobby) or finishing a game clears this. If the browser can't store anything (some private windows), the menu warns that a refresh will lose the game.
+
+## Field fixes (from a real 8-player game)
+
+- **"Offline" warnings.** Phones pause web pages when the screen locks or another app is open, and the 12-second timeout plus a sticky offline flag made active players look offline.
+  - Now any message marks a player online again.
+  - Players count as "away" only after 30 s (`FY.CONFIG.net.awayAfterMs`).
+  - A page re-syncs as soon as it becomes visible again.
+  - The game master's page says goodbye on reload, so guests reconnect at once.
+  - Online games keep the screen on (Screen Wake Lock; can be turned off in Settings).
+  - The banner appears only when the game is waiting on someone who is away.
+- **One player shown twice.** This happened when the board had more detective pieces than detective players: the classic sharing rule gave the first player a second piece. Now the piece count follows the number of detective players (at least 5) unless the game master picks it. The lobby lists who controls which detective, and piece cards say "2 pieces".
+- **Real double logins are blocked.**
+  - **Second tab:** one tab per game per browser (Web Locks). A second tab offers "Play here instead" and tells the first tab why.
+  - **Game master's own browser:** it can't also join as a guest.
+  - **Profile switch:** `?profile=` only works on local test pages.
+  - **Removing players:** the game master can remove a player in the lobby, and that device can't rejoin.
+- **Map taps.** Dialogs opened from the map closed instantly, because the tap's click landed on the new backdrop. Fixed. Tapping a piece now shows who it is, their tickets or Mr. X's last sighting, and the station's routes.
+- **Offline caching.** A service worker (`sw.js`, stamped by `tools/package.py`) caches the site and the pinned CDN files, so solo games load with no internet after one visit. There is also a web app manifest with icons for "Add to Home Screen". Online games still need internet.
+
+Tests: `tests/offline-identity.cjs` covers offline loading and play, the second-tab takeover, the game master joining their own game, removal and away recovery.

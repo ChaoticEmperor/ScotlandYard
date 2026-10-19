@@ -42,13 +42,18 @@
   function overlay(html, onMount) {
     $("#overlayCard").innerHTML = html;
     $("#overlay").classList.remove("hidden");
+    layerOpenedAt = Date.now();
     if (onMount) onMount($("#overlayCard"));
     var first = $("#overlayCard").querySelector("button, input");
     if (first) first.focus();
   }
+  // A map tap opens dialogs on pointer-up; the same tap's click then lands on the new backdrop.
+  // Backdrop taps right after opening are ignored so the dialog doesn't close at once.
+  var layerOpenedAt = 0;
   function sheet(html, onMount) {
     $("#sheetCard").innerHTML = html;
     $("#sheet").classList.remove("hidden");
+    layerOpenedAt = Date.now();
     if (onMount) onMount($("#sheetCard"));
   }
 
@@ -128,9 +133,22 @@
     if (bg) mv.setBackground(bg.url, bg.painted);
   }
 
+  // Keep the screen on during online games: a sleeping phone drops out of the game.
+  var wake = null;
+  function keepAwake(on) {
+    if (!("wakeLock" in navigator)) return;
+    if (!on) { if (wake) { try { wake.release(); } catch (e) {} wake = null; } return; }
+    if (wake || document.visibilityState !== "visible") return;
+    navigator.wakeLock.request("screen").then(function (w) { wake = w; w.addEventListener("release", function () { wake = null; }); }, function () {});
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && ctl && ctl.opts.mode === "online" && settings.awake) keepAwake(true);
+  });
+
   function enterGame(c) {
     if (ctl) ctl.destroy();
     ctl = c;
+    keepAwake(c.opts.mode === "online" && settings.awake);
     if (c.opts.mode === "solo") S.set("resume", c.s.pending === "over" ? null : { kind: "solo" });
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
     show("game");
@@ -399,9 +417,11 @@
       var isMine = ctl.myDets.indexOf(i) >= 0, can = mine.indexOf(i) >= 0;
       var moved = s.pending === "det" || s.pending === "probe" ? s.moved[i] : false;
       var owner = ctl.detOwnerLabel ? ctl.detOwnerLabel(i) : "";
+      var count = owner && ctl.sess ? ctl.sess.seats.pawns.filter(function (id) { return id === ctl.sess.seats.pawns[i]; }).length : 1;
+      if (count > 1) owner += " · " + count + " pieces";
       h += '<button class="piece' + (i === ui.sel && can ? " sel" : "") + (moved ? " done" : "") + '" data-det="' + i + '"' + (can ? "" : " disabled") + ">" +
         '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + (i + 1) + "</span>" + detName(i) + " · " + d.pos +
-        (moved ? " ✓" : "") + (isMine || !owner ? "" : '<small style="color:var(--muted);font-weight:600">' + esc(owner) + "</small>") + "</span>" +
+        (moved ? " ✓" : "") + "</span>" + (owner ? '<span class="own">' + esc(owner) + "</span>" : "") +
         '<span class="tks"><span>' + tkDot("taxi") + " " + d.t.taxi + "</span><span>" + tkDot("bus") + " " + d.t.bus + "</span><span>" + tkDot("underground") + " " + d.t.underground + "</span></span></button>";
     });
     return h + "</div>";
@@ -466,7 +486,11 @@
     var who = myTurn();
     if (who === "det") {
       var mine = ctl.myTurnDets();
-      for (var k = 0; k < mine.length; k++) if (ctl.s.dets[mine[k]].pos === n) { ui.sel = mine[k]; render(); return; }
+      for (var k = 0; k < mine.length; k++) if (ctl.s.dets[mine[k]].pos === n) {
+        ui.sel = mine[k]; render();
+        tip("select");
+        return;
+      }
     }
     var g = groupByStation(currentOptions()).filter(function (x) { return x.to === n; })[0];
     if (g) {
@@ -476,15 +500,44 @@
     if (who) tip("unavailable");
     stationInfo(n);
   }
+  // Who stands on station n (as drawn on this device's map).
+  function piecesAt(n) {
+    var out = [], s = ctl.s, xv = xVisible();
+    s.dets.forEach(function (d, i) { if (d.pos === n) out.push({ det: i }); });
+    if (xv === n) out.push({ x: true });
+    else if (!xv && s.last && s.last.pos === n && ctl.view !== "x") out.push({ ghost: true });
+    return out;
+  }
+  function pieceHtml(p) {
+    var s = ctl.s;
+    if (p.det != null) {
+      var d = s.dets[p.det], own = detLabel(p.det);
+      var moved = (s.pending === "det" || s.pending === "probe") && s.moved[p.det];
+      return '<div class="pl"><span class="pdot" style="background:' + DCOL[p.det % DCOL.length] + ';width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800">' + (p.det + 1) + "</span>" +
+        '<span class="who">' + esc(own) + (moved ? " · moved" : "") + "</span>" +
+        '<span class="chips"><span class="chip">' + tkDot("taxi") + d.t.taxi + '</span><span class="chip">' + tkDot("bus") + d.t.bus + '</span><span class="chip">' + tkDot("underground") + d.t.underground + "</span></span></div>";
+    }
+    if (p.x) {
+      var t = s.xT;
+      return '<div class="pl"><span class="who">' + esc(xLabel()) + (ctl.view === "x" ? "" : " · seen now") + "</span>" +
+        '<span class="chips"><span class="chip">' + tkDot("black") + t.black + '</span><span class="chip">' + tkDot("double", "2") + t.double + "</span></span></div>";
+    }
+    return '<div class="pl"><span class="who">' + esc(XN()) + " was last seen here after move " + s.last.move + "</span></div>";
+  }
+
   function stationInfo(n) {
     var list = function (t) { return board.adj[t][n].slice().sort(function (a, b) { return a - b; }).join(", ") || "none"; };
-    var h = '<h2 class="disp">Station ' + n + "</h2><p>" + KIND[board.kind[n]] + (scene.piers[n] ? " and ferry pier" : "") + ".</p><ul>" +
+    var here = piecesAt(n), mine = myTurn() === "det" ? ctl.myTurnDets() : [];
+    var h = '<h2 class="disp">Station ' + n + "</h2>" +
+      (here.length ? '<div class="plist">' + here.map(pieceHtml).join("") + "</div>" : "") +
+      here.filter(function (p) { return p.det != null && mine.indexOf(p.det) >= 0; }).map(function (p) { return '<button class="btn pri" data-pick="' + p.det + '">Move ' + detName(p.det) + "</button>"; }).join("") +
+      "<p>" + KIND[board.kind[n]] + (scene.piers[n] ? " and ferry pier" : "") + ".</p><ul>" +
       "<li>" + tkDot("taxi") + " Taxi to " + list("taxi") + "</li>";
     if (board.adj.bus[n].length) h += "<li>" + tkDot("bus") + " Bus to " + list("bus") + "</li>";
     if (board.adj.underground[n].length) h += "<li>" + tkDot("underground") + " Underground to " + list("underground") + "</li>";
     if (board.adj.ferry[n].length) h += "<li>" + tkDot("ferry") + " Ferry to " + list("ferry") + " (Mr. X only, black ticket)</li>";
     h += "</ul>";
-    if (myTurn()) h += '<p class="note">You can’t reach this station from where you are with your tickets.</p>';
+    if (myTurn() && !here.some(function (p) { return (p.det != null && mine.indexOf(p.det) >= 0) || (p.x && ctl.view === "x"); })) h += '<p class="note">You can’t reach this station from where you are with your tickets.</p>';
     sheet(h + '<button class="btn" data-act="close">Close</button>');
   }
 
@@ -630,6 +683,8 @@
     "double-use": ["Double move", "Pick your second station next. Both moves use a ticket and fill two places in your travel log."],
     "handover": ["Tickets change hands", "Every ticket a detective spends goes to Mr. X, so he never runs out."],
     "stuck": ["Stuck detective", "A detective with no ticket for any route from its station misses its turn. If no detective can move, Mr. X wins."],
+    "offline-ready": ["Works offline", "Fog Yard is saved on this device: solo games now load without internet. Online games still need a connection. Tip: add it to your home screen."],
+    "select": ["Detective selected", "Its moves glow on the map and are listed on the Play tab. Tap another of your detectives to switch."],
     "unavailable": ["Not reachable", "Each ticket follows its own lines: taxi (yellow streets), bus (teal lanes) and underground (red dashes)."]
   };
   function tip(id) {
@@ -668,6 +723,7 @@
     overlay('<h2 class="disp">About Fog Yard</h2>' +
       "<p>Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Fog Yard is an unofficial fan project and is not affiliated with Ravensburger.</p>" +
       "<p>Map data © OpenStreetMap contributors, available under the Open Database License. The illustrated board, station layout and landmark icons are original.</p>" +
+      '<p class="note">' + (navigator.serviceWorker && navigator.serviceWorker.controller ? "Saved for offline play on this device." : "Open once with internet to save Fog Yard for offline play.") + "</p>" +
       '<p class="note">Online play connects players directly using PeerJS. No game data is stored on a server.</p>' +
       '<button class="btn pri" data-act="close">Close</button>');
   }
@@ -677,11 +733,13 @@
       '<label class="switch"><input type="checkbox" id="oTips"' + (settings.tips ? " checked" : "") + "><span>Learning tips</span></label>" +
       '<label class="switch"><input type="checkbox" id="oTactical"' + (settings.tactical ? " checked" : "") + "><span>Tactical hints (solo, or when the game master allows them)</span></label>" +
       '<label class="switch"><input type="checkbox" id="oVibrate"' + (settings.vibrate ? " checked" : "") + "><span>Vibrate when it's my turn</span></label>" +
+      '<label class="switch"><input type="checkbox" id="oAwake"' + (settings.awake ? " checked" : "") + "><span>Keep the screen on during online games</span></label>" +
       '<div class="row"><button class="btn grow" id="oResetTips">Show all tips again</button><button class="btn pri grow" data-act="close">Done</button></div>', function (card) {
       seg(card.querySelector("#oTheme"), ["auto", "light", "dark"], settings.theme, ["Auto", "Light", "Dark"], function (v) { settings = S.saveSetting("theme", v); applyTheme(); });
       card.querySelector("#oTips").onchange = function () { settings = S.saveSetting("tips", this.checked); render(); };
       card.querySelector("#oTactical").onchange = function () { settings = S.saveSetting("tactical", this.checked); render(); };
       card.querySelector("#oVibrate").onchange = function () { settings = S.saveSetting("vibrate", this.checked); };
+      card.querySelector("#oAwake").onchange = function () { settings = S.saveSetting("awake", this.checked); keepAwake(this.checked && ctl && ctl.opts.mode === "online"); };
       card.querySelector("#oResetTips").onclick = function () { S.resetTips(); this.textContent = "Tips will show again"; };
     });
   }
@@ -698,6 +756,7 @@
   }
   function toMenu() {
     S.set("resume", null); // leaving on purpose: don't jump back in on the next load
+    keepAwake(false);
     if (ctl) { if (ctl.leave) ctl.leave(); ctl.destroy(); ctl = null; }
     ui.replay = null;
     $("#toast").classList.add("hidden");
@@ -707,7 +766,7 @@
 
   // ---------- global click handling ----------
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-go],[data-see],[data-det],[data-filter]");
+    var t = e.target.closest("[data-act],[data-go],[data-see],[data-det],[data-filter],[data-pick]");
     if (!t) return;
     if (t.hasAttribute("data-go")) return go(+t.getAttribute("data-go"), t.getAttribute("data-tk"));
     if (t.hasAttribute("data-see")) {
@@ -721,6 +780,7 @@
       return;
     }
     if (t.hasAttribute("data-det")) { ui.sel = +t.getAttribute("data-det"); render(); focusMine(false); return; }
+    if (t.hasAttribute("data-pick")) { ui.sel = +t.getAttribute("data-pick"); closeLayers(); render(); focusMine(true); return; }
     if (t.hasAttribute("data-filter")) { ui.filter = t.getAttribute("data-filter"); renderLog(); return; }
     var a = t.getAttribute("data-act");
     if (a === "close") closeLayers();
@@ -734,7 +794,10 @@
     else if (ctl && ctl.onAction) ctl.onAction(a, t);
   });
   ["#sheet", "#overlay"].forEach(function (q) {
-    $(q).addEventListener("click", function (e) { if (e.target === this && !(ctl && ctl.s && ctl.s.pending === "over" && q === "#overlay" && !ui.endShown)) this.classList.add("hidden"); });
+    $(q).addEventListener("click", function (e) {
+      if (e.target !== this || Date.now() - layerOpenedAt < 450) return;
+      this.classList.add("hidden");
+    });
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLayers(); });
   window.addEventListener("resize", function () { if (ctl) { if (wide() && ui.tab === "map") setTab("play"); render(); } });
@@ -769,7 +832,25 @@
       if (mv) mv.setBackground(r.url, r.painted);
       if (mini) mini.setBackground(r.url, r.painted);
     });
+    registerOffline();
     FY.UI.ready = true;
+  }
+
+  // Offline cache (service worker): only on real sites, not file:// pages.
+  function registerOffline() {
+    if (!("serviceWorker" in navigator) || !/^https?:$/.test(location.protocol)) return;
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js").then(function (reg) {
+      reg.addEventListener("updatefound", function () {
+        var w = reg.installing;
+        if (!w) return;
+        w.addEventListener("statechange", function () {
+          if (w.state !== "activated") return;
+          if (!hadController) tip("offline-ready");
+          else toast("Fog Yard was updated", "Reload the page when it suits you to use the new version.");
+        });
+      });
+    }).catch(function () {});
   }
 
   FY.UI = {

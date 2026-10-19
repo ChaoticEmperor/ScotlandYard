@@ -134,6 +134,7 @@ h2.disp { margin: 0; font-size: 30px; }
 .piece .top { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .piece .pdot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 12px; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
 .piece .tks { display: flex; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.piece .own { font-size: 12.5px; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .piece.sel { border-color: var(--ink); border-width: 2px; }
 .piece.done { opacity: .55; }
 .piece:disabled { cursor: default; }

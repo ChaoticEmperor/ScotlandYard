@@ -40,6 +40,9 @@
       // [{ urls: "turn:turn.example.org:3478", username: "user", credential: "secret" }]
       iceServers: [],
       reconnectEveryMs: 2500,
+      // Phones pause web pages when the screen locks or another app is open, so a quiet player is
+      // only shown as away after this long (any message brings them straight back).
+      awayAfterMs: 30000,
       reconnectGiveUpMs: 120000,
       defaultReferee: "verified" // "verified" or "trusted"
     },

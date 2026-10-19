@@ -449,6 +449,23 @@
     } else renderLobby();
   }
 
+  // ------------------------------------------------------------------ one tab per game
+  // A game is held by one tab of this browser (Web Locks). A second tab can't host the same game,
+  // and a second player tab must explicitly take over; the first tab is then told why.
+  var held = {};
+  function tabLock(name, steal, onLost) {
+    if (!navigator.locks) return Promise.resolve(true);
+    return new Promise(function (resolve) {
+      var opts = steal ? { steal: true } : { ifAvailable: true };
+      navigator.locks.request(S.prefix + name, opts, function (lock) {
+        if (!lock) { resolve(false); return; }
+        resolve(true);
+        return new Promise(function (release) { held[name] = release; });
+      }).catch(function () { delete held[name]; if (onLost) onLost(); });
+    });
+  }
+  function releaseLock(name) { if (held[name]) { held[name](); delete held[name]; } }
+
   // ------------------------------------------------------------------ host
   function genCode() {
     var A = C.net.codeAlphabet, s = "";
@@ -458,7 +475,7 @@
   function persistHost(sess) {
     if (sess.role !== "host" || sess.closed) return;
     if (sess.state && sess.state.pending === "over" && sess.routeEntry) S.set("resume", null);
-    S.set("host", { code: sess.code, entries: sess.entries, players: sess.players, settings: sess.settings, lobbySeats: sess.lobbySeats, keys: sess.keys && { pub: sess.keys.pub, priv: sess.keys.priv }, secret: sess.secret, over: !!(sess.state && sess.state.pending === "over" && sess.routeEntry) });
+    S.set("host", { code: sess.code, banned: sess.banned || {}, entries: sess.entries, players: sess.players, settings: sess.settings, lobbySeats: sess.lobbySeats, keys: sess.keys && { pub: sess.keys.pub, priv: sess.keys.priv }, secret: sess.secret, over: !!(sess.state && sess.state.pending === "over" && sess.routeEntry) });
   }
 
   function hostSession(code, saved) {
@@ -473,6 +490,7 @@
     sess.broadcast = function (msg) { Object.keys(sess.conns).forEach(function (id) { sess.conns[id].send(msg); }); };
     sess.close = function () {
       sess.closed = true;
+      releaseLock("host." + code);
       if (sess.state && sess.state.pending === "over") S.set("host", null);
       try { sess.listener && sess.listener.close(); } catch (e) {}
       clearInterval(sess.beat);
@@ -483,7 +501,7 @@
       if (keys) return fingerprint(keys.pub).then(function (fp) { sess.players.host.key = keys.pub; sess.players.host.fp = fp; });
     }).then(function () {
       if (saved) {
-        sess.players = saved.players; sess.settings = saved.settings; sess.lobbySeats = saved.lobbySeats || sess.lobbySeats; sess.secret = saved.secret;
+        sess.players = saved.players; sess.settings = saved.settings; sess.banned = saved.banned || {}; sess.lobbySeats = saved.lobbySeats || sess.lobbySeats; sess.secret = saved.secret;
         Object.keys(sess.players).forEach(function (id) { if (id !== "host") sess.players[id].online = false; });
         sess.players.host.online = true;
         var es = saved.entries || [];
@@ -494,11 +512,14 @@
         sess.listener = T.listen(C.net.peerPrefix + code, function (conn, h) { hostConn(sess, conn, h); }, function () { resolve(sess); }, function (err) { reject(err); });
       });
     }).then(function () {
+      // Reloading or closing the game master's page: tell everyone, so they reconnect at once
+      // instead of waiting for the silence timeout.
+      window.addEventListener("pagehide", function () { if (!sess.closed) sess.broadcast({ t: "bye" }); });
       sess.beat = setInterval(function () {
         var now = Date.now(), changed = false;
         Object.keys(sess.players).forEach(function (id) {
           var p = sess.players[id];
-          if (id !== "host" && p.online && now - (p.seen || 0) > 12000) { p.online = false; changed = true; }
+          if (id !== "host" && p.online && now - (p.seen || 0) > C.net.awayAfterMs) { p.online = false; changed = true; }
         });
         sess.broadcast({ t: "ping" });
         if (changed) { broadcastLobby(sess); sess.emit(); }
@@ -511,10 +532,16 @@
     var who = null;
     h.data = function (m) {
       if (!m || typeof m !== "object" || sess.closed) return;
-      if (who && sess.players[who]) sess.players[who].seen = Date.now();
+      if (who && sess.players[who]) {
+        var pl = sess.players[who];
+        pl.seen = Date.now();
+        if (!pl.online && sess.conns[who] === conn) { pl.online = true; broadcastLobby(sess); sess.emit(); }
+      }
       if (m.t === "hello") {
         var id = String(m.id || "").slice(0, 32), name = cleanName(m.name, 16) || "Player " + (Object.keys(sess.players).length + 1), alias = cleanName(m.alias, 20);
         if (!id || id === "host") return conn.send({ t: "error", text: "Bad hello." });
+        if (id === S.deviceId()) return conn.send({ t: "error", text: "This browser is already the game master of this game. Join from another device." });
+        if (sess.banned && sess.banned[id]) return conn.send({ t: "error", text: "The game master removed you from this game." });
         var known = sess.players[id];
         var seated = Object.keys(sess.players).length;
         if (!known && (sess.state || seated >= C.players.maxInLobby)) return conn.send({ t: "error", text: sess.state ? "That game has already started." : "That game is full." });
@@ -523,7 +550,13 @@
         var p = sess.players[id] = known || { name: name, key: m.key || null };
         if (!known) { p.name = name; p.alias = alias; }
         p.online = true; p.seen = Date.now();
-        if (sess.conns[id] && sess.conns[id] !== conn) try { sess.conns[id].close(); } catch (e) {}
+        // The same player opening the game in a second tab or window takes the seat over;
+        // the old tab is told why, so the two don't keep knocking each other off.
+        if (sess.conns[id] && sess.conns[id] !== conn) {
+          var old = sess.conns[id];
+          try { old.send({ t: "error", text: "This game is now open in another tab or window on this device.", superseded: true }); } catch (e) {}
+          setTimeout(function () { try { old.close(); } catch (e) {} }, 200);
+        }
         sess.conns[id] = conn;
         var fpDone = p.key && !p.fp && subtle ? fingerprint(p.key).then(function (fp) { p.fp = fp; }) : Promise.resolve();
         fpDone.then(function () {
@@ -616,9 +649,12 @@
   function broadcastLobby(sess) {
     if (sess.role === "host") persistHost(sess);
     // With more detective players than pieces, add pieces (up to the maximum) so everyone plays.
+    // Unless the game master picked a number, one piece per detective player (at least the
+    // classic 5, so small groups share pieces as in the board game).
     if (!sess.state) {
       var dp = Object.keys(sess.players).filter(function (id) { return sess.lobbySeats.roles[id] === "det"; }).length;
-      if (dp > sess.settings.nDet) sess.settings.nDet = Math.min(C.rules.maxDetectivePawns, dp);
+      if (!sess.settings.nDetManual) sess.settings.nDet = Math.min(C.rules.maxDetectivePawns, Math.max(C.rules.detectivePawns, dp));
+      else if (dp > sess.settings.nDet) sess.settings.nDet = Math.min(C.rules.maxDetectivePawns, dp);
     }
     var info = lobbyInfo(sess);
     sess.broadcast({ t: "lobby", info: info });
@@ -679,7 +715,7 @@
       return signEntry(sess, ev).then(function (entry) { sess.send({ t: "req", entry: entry }); });
     };
     sess.send = function (m) { if (sess.conn && sess.conn.open) sess.conn.send(m); };
-    sess.close = function () { sess.closed = true; clearInterval(sess.beat); clearTimeout(sess.retry); try { sess.conn && sess.conn.close(); } catch (e) {} };
+    sess.close = function () { sess.closed = true; releaseLock("guest." + code); clearInterval(sess.beat); clearTimeout(sess.retry); try { sess.conn && sess.conn.close(); } catch (e) {} };
     function connect() {
       if (sess.closed) return;
       sess.conn = T.connect(C.net.peerPrefix + code, {
@@ -703,6 +739,12 @@
     }
     function fail(text) { sess.close(); if (current === sess) { current = null; openHome(text); } }
     sess.lost = lost;
+    // Coming back to the page (screen on, app switched back): check in straight away.
+    sess.wake = function () {
+      if (sess.closed) return;
+      if (sess.offline || !sess.conn || !sess.conn.open) { clearTimeout(sess.retry); sess.lostAt = sess.lostAt || Date.now(); try { sess.conn && sess.conn.close(); } catch (e) {} connect(); }
+      else { sess.lastSeen = Date.now(); sess.send({ t: "ping" }); }
+    };
     return ready.then(function (keys) {
       sess.keys = keys;
       S.set("guest", { code: code, name: name, keys: keys && { pub: keys.pub, priv: keys.priv } });
@@ -710,13 +752,14 @@
       sess.beat = setInterval(function () {
         if (sess.closed) return;
         sess.send({ t: "ping" });
-        if (!sess.offline && sess.lastSeen && Date.now() - sess.lastSeen > 12000) lost();
+        if (!sess.offline && sess.lastSeen && Date.now() - sess.lastSeen > C.net.awayAfterMs) lost();
       }, 4000);
       return sess;
     });
   }
   function guestMsg(sess, m) {
     if (!m || typeof m !== "object") return;
+    if (m.t === "bye") { if (sess.lost) sess.lost(); return; }
     if (m.t === "welcome") { sess.everJoined = true; sess.lostAt = 0; sess.offline = false; sess.emit(); }
     else if (m.t === "lobby") { sess.lobby = m.info; if (!sess.state) renderLobby(); }
     else if (m.t === "reset") { sess.entries = []; sess.state = null; sess.commit0 = null; sess.routeEntry = null; sess.audit = null; sess.problem = null; sess.queue = Promise.resolve(); if (sess.ctl) { sess.ctl.destroy(); sess.ctl = null; } }
@@ -734,7 +777,12 @@
       ingest(sess, m.entry).then(function (res) { if (res === "gap") sess.send({ t: "sync?" }); });
     } else if (m.t === "secret" && m.secret) { sess.secret = m.secret; S.set("xsecret." + sess.code, m.secret); sess.emit(); }
     else if (m.t === "reject") { sess.lock = null; FY.UI.toast("Move not accepted", String(m.reason || "")); sess.emit(); }
-    else if (m.t === "error") { var text = String(m.text || "Error"); sess.close(); current = null; openHome(text); }
+    else if (m.t === "error") {
+      var text = String(m.text || "Error");
+      sess.close(); current = null;
+      if (!m.superseded) S.set("resume", null); // don't bounce straight back in (but leave the new tab's record alone)
+      openHome(text);
+    }
   }
 
   // ------------------------------------------------------------------ connection banner
@@ -750,8 +798,12 @@
     if (sess.offline) return setNet("Connection lost. Reconnecting…", "");
     var s = sess.state;
     if (sess.role === "host" && s && s.pending !== "over") {
-      var off = Object.keys(sess.players).filter(function (id) { return id !== "host" && !sess.players[id].online && (sess.seats.mrx === id || sess.seats.pawns.indexOf(id) >= 0); });
-      if (off.length) return setNet(off.map(function (id) { return sess.players[id].name; }).join(", ") + " offline. Waiting, or reassign their pieces from the menu.", "wait");
+      // Only when the game is actually waiting on someone who seems to be away.
+      var waitingOn = [];
+      if (s.pending === "det") s.dets.forEach(function (d, i) { if (!s.moved[i] && R.detOptions(FY.UI.board, s, i).length) waitingOn.push(sess.seats.pawns[i]); });
+      else if (s.pending === "x" || s.pending === "probe") waitingOn.push(sess.seats.mrx);
+      var away = waitingOn.filter(function (id, k) { return waitingOn.indexOf(id) === k && id !== "host" && sess.players[id] && !sess.players[id].online; });
+      if (away.length) return setNet("Waiting for " + away.map(function (id) { return labelOf(sess, id); }).join(", ") + ": their phone seems to be away (screen off or another app). Give them a moment, or hand their pieces to someone from the menu.", "wait");
     }
     if (s && s.pending !== "over" && !sess.commit0) return setNet("Waiting for Mr. X to pick a starting point…", "wait");
     if (s && (s.pending === "probe" || (s.pending === "x" && !(sess.ctl && sess.ctl.humanX)))) {
@@ -774,6 +826,7 @@
       '<div class="joinrow"><input id="nCode" maxlength="' + C.net.codeLength + '" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code"><button class="btn pri" data-net="join"' + (ok ? "" : " disabled") + ">Join game</button></div>" +
       (hostSaved && hostSaved.code && !hostSaved.over ? '<button class="btn" data-net="resume">Resume hosting game ' + hostSaved.code + "</button>" : "") +
       (guestSaved && guestSaved.code ? '<button class="btn" data-net="rejoin">Rejoin game ' + guestSaved.code + "</button>" : "") +
+      (navigator.onLine === false ? '<p class="note" style="color:var(--bad);font-weight:700">You\'re offline. Online games need an internet connection on every phone; solo games work offline.</p>' : "") +
       '<p class="note">' + (ok ? "Players connect directly to each other. If a friend can't connect, try the same Wi-Fi or turn off a VPN; the site owner can also add a TURN server in js/config.js." : "Online play couldn't load (check your connection and reload).") + "</p>";
     $("#onlineInner").innerHTML = h;
   }
@@ -785,6 +838,12 @@
   function startHosting(saved) {
     if (current) current.close();
     var code = saved ? saved.code : genCode(), name = saved ? null : nameValue() || "Game master";
+    tabLock("host." + code, false, function () { if (current && current.code === code) { current.close(); current = null; openHome("This game was taken over by another tab."); } }).then(function (ok) {
+      if (!ok) return openHome("Game " + code + " is already open in another tab of this browser. Use that tab.");
+      hostNow(saved, code, name);
+    });
+  }
+  function hostNow(saved, code, name) {
     $("#onlineInner").innerHTML = '<p class="note">Opening game ' + code + "…</p>";
     hostSession(code, saved).then(function (sess) {
       current = sess;
@@ -796,12 +855,37 @@
       openHome(err === "unavailable-id" ? "That code is still held by the matchmaking server; try Resume again in a minute." : "Couldn't reach the matchmaking server. Check your connection and try again.");
     });
   }
-  function joinGame(code, name) {
+  function joinGame(code, name, steal) {
     if (current) current.close();
+    tabLock("guest." + code, steal, function () {
+      if (current && current.code === code && current.role === "guest") { current.close(); current = null; FY.UI.show("online"); openHome("This game is now open in another tab or window on this device."); }
+    }).then(function (ok) {
+      if (ok) return joinNow(code, name);
+      FY.UI.show("online");
+      $("#onlineInner").innerHTML = '<button class="linkbtn back" data-net="back">&larr; Back</button><h2 class="disp">Already open</h2>' +
+        '<p class="note">Game ' + code + " is already open in another tab or window on this device. Each player can only be in a game once.</p>" +
+        '<button class="btn pri" data-net="steal" data-code="' + code + '">Play here instead</button>';
+    });
+  }
+  function joinNow(code, name) {
     $("#onlineInner").innerHTML = '<p class="note">Connecting to ' + code + "…</p>";
     guestSession(code, name).then(function (sess) { current = sess; S.set("resume", { kind: "guest", code: code }); renderLobby(); });
   }
 
+  // "Joeee plays D1 and D7": who controls which detective, so shared pieces are never a surprise.
+  function piecesNote(sess, info) {
+    var roles = info.roles, ids = Object.keys(info.players), n = info.settings.nDet;
+    var dets = ids.filter(function (id) { return roles[id] === "det"; });
+    if (!dets.length) return "";
+    var by = {};
+    for (var i = 0; i < n; i++) (by[dets[i % dets.length]] = by[dets[i % dets.length]] || []).push("D" + (i + 1));
+    var lines = dets.map(function (id) {
+      var p = info.players[id], nm = FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " (you)" : "");
+      return nm + ": " + by[id].join(" and ");
+    });
+    var shared = dets.some(function (id) { return by[id].length > 1; });
+    return '<div class="sect">Detective pieces</div><p class="note">' + lines.join("<br>") + (shared ? "<br>Some players control more than one detective" + (sess.role === "host" ? "; choose fewer pieces above if you prefer one each." : ".") : "") + "</p>";
+  }
   var ui_edit = false;
   function renderLobby() {
     var sess = current;
@@ -816,7 +900,7 @@
     Object.keys(info.players).forEach(function (id) {
       var p = info.players[id], r = info.roles[id] || "det";
       h += '<div class="pl"><span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
-        (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : "") +
+        (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : host ? '<button class="btn sm" data-net="kick" data-pid="' + id + '" aria-label="Remove ' + FY.UI.esc(p.name) + '">Remove</button>' : "") +
         (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>');
       if (host) {
         h += '<div class="seg" style="flex-basis:100%">' + ["x", "det", "watch"].map(function (k) {
@@ -843,10 +927,12 @@
       h += '<p class="note">' + (st.referee === "verified" ? "Nobody can cheat unnoticed: moves are signed on each player's device, Mr. X's position never leaves his device, and every device checks his whole route at the end." : "Simpler: your device holds Mr. X's position and you can see it. Players must trust you.") + "</p>";
       h += '<label class="switch"><input type="checkbox" data-net="tactical"' + (st.tactical ? " checked" : "") + "><span>Allow tactical hints for everyone</span></label>";
       h += '<div class="row"><button class="btn grow" data-net="shuffle">Random Mr. X</button></div>';
+      h += piecesNote(sess, info);
       var prob = lobbyProblem(sess);
       h += '<p class="note">' + (prob || "Ready. Detective pieces are shared out between detective players." + (st.nDet > 5 ? " More than 5 detectives is a big-group variant: Mr. X gets a black ticket for each one." : "")) + "</p>";
       h += '<button class="btn pri big" data-net="start"' + (prob ? " disabled" : "") + ">Start game</button>";
     } else {
+      h += piecesNote(sess, info);
       h += '<p class="note">Referee: ' + (st.referee === "verified" ? "verified (no one can cheat unnoticed)" : "trusted game master (the game master can see Mr. X)") + (st.tactical ? "; tactical hints allowed" : "") + ".</p>";
       h += '<p class="note">' + (sess.offline ? "Connection lost. Reconnecting…" : "Waiting for the game master to start.") + " Compare the 🔑 fingerprints out loud to be sure nobody is impersonated.</p>";
     }
@@ -898,10 +984,19 @@
       sess.lobbySeats.roles[id] = role;
       return broadcastLobby(sess);
     }
-    if (t.hasAttribute("data-ndet") && sess) { sess.settings.nDet = +t.getAttribute("data-ndet"); return broadcastLobby(sess); }
+    if (t.hasAttribute("data-ndet") && sess) { sess.settings.nDet = +t.getAttribute("data-ndet"); sess.settings.nDetManual = true; return broadcastLobby(sess); }
     if (t.hasAttribute("data-ref") && sess) { sess.settings.referee = t.getAttribute("data-ref"); return broadcastLobby(sess); }
     if (a === "back") { FY.UI.show("menu"); return; }
+    if (a === "steal") { var sc = t.getAttribute("data-code"), sg = S.get("guest", null); return joinGame(sc, (sg && sg.name) || nameValue(), true); }
     if (a === "editme") { ui_edit = true; return renderLobby(); }
+    if (a === "kick" && sess && sess.role === "host" && !sess.state) {
+      var kid = t.getAttribute("data-pid");
+      (sess.banned = sess.banned || {})[kid] = true;
+      var kc = sess.conns[kid];
+      if (kc) { try { kc.send({ t: "error", text: "The game master removed you from this game." }); } catch (e) {} setTimeout(function () { try { kc.close(); } catch (e) {} }, 200); }
+      delete sess.conns[kid]; delete sess.players[kid]; delete sess.lobbySeats.roles[kid];
+      return broadcastLobby(sess);
+    }
     if (a === "canceledit") { ui_edit = false; return renderLobby(); }
     if (a === "saveme" && sess) { ui_edit = false; setProfile(sess, $("#eName").value, $("#eAlias").value); return renderLobby(); }
     if (a === "host") return startHosting(null);
@@ -932,6 +1027,12 @@
   document.addEventListener("change", function (e) {
     var t = e.target;
     if (t.getAttribute && t.getAttribute("data-net") === "tactical" && current) { current.settings.tactical = t.checked; broadcastLobby(current); }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible" || !current || current.closed) return;
+    if (current.role === "guest" && current.wake) current.wake();
+    if (current.role === "host" && current.broadcast) current.broadcast({ t: "ping" });
   });
 
   FY.Net = {

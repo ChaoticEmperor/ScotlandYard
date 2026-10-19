@@ -40,6 +40,8 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 2. Drag **`web.zip`** (in the repository root) onto the page. Dragging the `web` folder also works.
 3. Netlify gives you a public `https://…netlify.app` address. Share it with your players.
 
+After one visit with internet, the site is saved on the phone: solo games then work fully offline. Online games still need internet. "Add to Home Screen" installs it like an app.
+
 The site needs HTTPS for online play, which Netlify provides. For a quick local try, open `web/index.html` directly: solo play works from `file://`. To serve it locally, any static server works, e.g. `cd web && python3 -m http.server`.
 
 To rebuild `web.zip` after changes, run `python3 web/tools/package.py`.
@@ -64,5 +66,5 @@ To rebuild `web.zip` after changes, run `python3 web/tools/package.py`.
 - **Tests.** Run them with:
   - `node web/tests/test.mjs`: graph checks, move generators, rules and hundreds of AI games. No dependencies.
   - `node web/tests/protocol.mjs`: signed-log verification and cheat detection. No dependencies.
-  - `node web/tests/ui-smoke.cjs` and `node web/tests/online-smoke.cjs`: real-browser solo and three-player online games. These need Playwright.
+  - `node web/tests/ui-smoke.cjs`, `node web/tests/online-smoke.cjs` and `node web/tests/offline-identity.cjs`: real-browser solo games, three- and eight-player online games (`FY_PLAYERS=8`), offline loading, and one-seat-per-player checks. These need Playwright.
 - **Data and map pipeline.** `web/tools/` holds the station graph builder and validators, the layout generator and the London map renderers. `web/NOTES.md` documents every decision.

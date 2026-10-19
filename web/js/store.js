@@ -2,8 +2,10 @@
    settings, one-time tips and saved games. */
 (function (FY) {
   "use strict";
-  // ?profile=name keeps separate storage per tab (used by the multi-player tests).
-  var profile = (location.search.match(/[?&]profile=([a-z0-9]+)/i) || [])[1];
+  // ?profile=name keeps separate storage per tab, for the multi-player tests only: it is ignored
+  // on real sites, so nobody can mint a second identity in the same browser.
+  var local = location.protocol === "file:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  var profile = local ? (location.search.match(/[?&]profile=([a-z0-9]+)/i) || [])[1] : null;
   var P = FY.CONFIG.storagePrefix + (profile ? profile + "." : "");
 
   function get(key, fallback) {
@@ -27,6 +29,7 @@
     level: "normal",
     detectives: FY.CONFIG.rules.detectivePawns,
     vibrate: true,
+    awake: true, // keep the screen on during online games
     name: "",
     alias: ""
   };
@@ -59,7 +62,7 @@
   }
 
   FY.Store = {
-    get: get, set: set, works: works, settings: settings, saveSetting: saveSetting,
+    get: get, set: set, works: works, prefix: P, settings: settings, saveSetting: saveSetting,
     tipSeen: tipSeen, markTip: markTip, resetTips: resetTips, deviceId: deviceId
   };
 })(window.FY = window.FY || {});
