@@ -43,7 +43,8 @@
 
     return {
       N: N, W: L.width, H: L.height, pos: pos, adj: adj, edges: edges, kind: kind,
-      neighbours: all, dist: dist, starts: g.starts, types: TYPES
+      neighbours: all, dist: dist, starts: g.starts, types: TYPES,
+      river: L.river || null, geo: L.geo || null
     };
   }
 

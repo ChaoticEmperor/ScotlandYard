@@ -23,10 +23,10 @@ const E = [];
 for (const [t, list] of Object.entries(g.edges)) for (const [a, b] of list) E.push([a - 1, b - 1, t]);
 const m = metrics(P, E);
 if (m.minSep < 34) errors.push(`stations only ${m.minSep}px apart (need 34)`);
-if (m.grazes) errors.push(`${m.grazes} taxi/ferry routes pass within 14px of an unrelated station`);
+if (m.grazes) errors.push(`${m.grazes} taxi routes pass within 14px of an unrelated station`);
 if (m.taxiCrossings > (L.metrics?.taxiCrossings ?? 0)) errors.push(`taxi crossings rose to ${m.taxiCrossings}`);
 if (errors.length) {
   errors.forEach((e) => console.error("FAIL " + e));
   process.exit(1);
 }
-console.log(`OK layout ${L.width}x${L.height}: min separation ${m.minSep}px, taxi crossings ${m.taxiCrossings}, river bridges ${m.bridges}`);
+console.log(`OK layout ${L.width}x${L.height}: min separation ${m.minSep}px, taxi crossings ${m.taxiCrossings}, road bridges ${L.metrics?.bridges ?? m.bridges}`);

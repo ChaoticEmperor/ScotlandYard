@@ -18,7 +18,6 @@ export function metrics(P, E) {
   let minSep = Infinity;
   for (let i = 0; i < P.length; i++)
     for (let j = i + 1; j < P.length; j++) minSep = Math.min(minSep, Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]));
-  const street = (t) => t === "taxi" || t === "ferry";
   let taxiCrossings = 0, bridges = 0, allCrossings = 0, grazes = 0;
   for (let k = 0; k < E.length; k++)
     for (let m = k + 1; m < E.length; m++) {
@@ -30,8 +29,9 @@ export function metrics(P, E) {
         else if ((t === "ferry" && u === "taxi") || (t === "taxi" && u === "ferry")) bridges++;
       }
     }
+  // Ferries are drawn along the river, never as straight lines, so only taxi roads can graze stations.
   for (const [a, b, t] of E) {
-    if (!street(t)) continue;
+    if (t !== "taxi") continue;
     for (let j = 0; j < P.length; j++) if (j !== a && j !== b && segPointDist(P[j], P[a], P[b]) < 14) grazes++;
   }
   return { minSep: Math.round(minSep * 10) / 10, taxiCrossings, bridges, allCrossings, grazes };
