@@ -172,3 +172,28 @@ The uploaded zip contained only `index.html`. There was no `map-preview.png`, so
   - The overlay of possible Mr. X stations (the brief's Hints toggle), the coverage dots, and Mr. X's danger tint.
   - The player turns them on in solo play. Online, the game master allows or forbids them.
   - Detective hints use public information only.
+
+## Station layout (`data/layout.json`)
+
+`tools/build-layout.mjs` (deterministic, seed 7) creates original positions from the graph alone. It never reads the repo's `guiCoordinates`/`tuiCoordinates` or any board image.
+
+1. **Weighted shortest paths.** Distances in hops, weighted taxi 1, bus 2.2, underground 3.6, ferry 2.4.
+2. **Initial placement.** Classical MDS, rotated so the widest spread is horizontal.
+3. **Stress majorization.** 400 SMACOF iterations, at 64 px per taxi hop.
+4. **Local search** over 90 passes. It minimises:
+   - taxi/taxi crossings
+   - stations closer than 46 px
+   - taxi or ferry routes passing within 20 px of an unrelated station
+   - taxi hop lengths far from 64 px
+
+   A reflection move is used to untangle crossings. Bus and underground routes are drawn as curves, so their crossings are weighted low.
+
+Result:
+- The canvas is 1179 × 1036 px at default zoom.
+- Stations are at least 45 px apart; the requirement is 34.
+- **0 taxi/taxi crossings.**
+- No route grazes a station.
+
+The ferry chain 108-115-157-194 becomes the river in the map art. The 8 places where taxi routes cross it are drawn as bridges.
+
+`tools/validate-layout.mjs` re-checks all of this.
