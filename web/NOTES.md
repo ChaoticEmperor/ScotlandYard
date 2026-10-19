@@ -356,3 +356,9 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 - **Aliases in text.** Online, detectives now go by their player's alias (or name, if no alias is set) everywhere text names them. Examples: "Holmes to move", "Moves for Holmes", "Holmes caught Moriarty", and the Log filters. The travel log and station info add who plays the piece: "Holmes (David)", "Sam (you)". One player with several pieces, or two players with the same name, get numbers ("Holmes 1", "Holmes 2"). Computer pieces and solo games keep D1, D2. Names are user text, so every HTML use is escaped. The seats dialog and system notes keep D1, D2, because they are about the seat, not the person.
 - **Badge workaround removed.** The owner turned the "Powered by Netlify" badge off in the Netlify settings, so the tab-bar lifting code and its test are gone. If the badge comes back, it can be switched off again under Project configuration → General.
 - **Name.** The game is now called **Find Mr. X**. Internal ids (`FY`, `fogyard.` keys, `fogyard-` peer ids) are unchanged, so saved games and codes keep working.
+
+## Move lines on the map
+
+- **Lines you can take.** When it is your turn, every line the selected piece can travel is lit on the map in its transport colour (white casing, flowing dashes), not just the destination stations. A black ticket lights the ferry, or each land line that joins the two stations. Reduced motion stops the flow.
+- **Replay buttons.** In the dark theme the replay ◀ ▶ Done buttons were dark on dark. They now stay light in both themes, like the zoom buttons.
+- **Trail of the last move.** A detective's move leaves a glow along the line it took, fading over about 3 seconds. Mr. X's own moves leave a trail only on his device, so nothing is given away.

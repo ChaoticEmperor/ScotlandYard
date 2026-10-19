@@ -30,7 +30,17 @@ const out = process.argv[2] || null;
       if (over) break;
       const btn = await page.$(".mv .tkb button");
       if (btn) {
+        if (turns === 2) {
+          // The lines you can take are lit on the map, one per move option.
+          const lit = await page.evaluate(() => ({ lines: document.querySelectorAll("#mapbox .opt-line").length, moves: document.querySelectorAll("#mapbox .hl.move").length }));
+          if (!lit.lines || lit.lines < lit.moves) errors.push(role + ": move lines not lit " + JSON.stringify(lit));
+        }
         await btn.click(); turns++;
+        if (turns === 3 && role === "det") {
+          // The line just travelled glows for a moment.
+          const trail = await page.evaluate(() => document.querySelectorAll("#mapbox .trail").length);
+          if (!trail) errors.push(role + ": no trail after a move");
+        }
         if (shotName && turns === 6 && out) await page.screenshot({ path: join(out, shotName + "-play.png") });
         if (turns === 7) {
           // A refresh mid-game must come straight back to the same game.

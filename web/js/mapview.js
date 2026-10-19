@@ -69,6 +69,10 @@
         el("path", a, g);
       });
     });
+    // Lines you can travel this turn (in their transport colour), the trail of the last move,
+    // and the bright glow for a move you are looking at.
+    this.optHi = el("g", { "class": "opt-hi", fill: "none", "stroke-linecap": "round" }, svg);
+    this.trailHi = el("g", { "class": "trail-hi", fill: "none", "stroke-linecap": "round" }, svg);
     this.routeHi = el("g", { "class": "route-hi", fill: "none", "stroke-linecap": "round" }, svg);
 
     // Feature labels for the painted terrain; hidden when a map image (with its own names) is used.
@@ -238,16 +242,44 @@
       el("circle", { cx: p.x, cy: p.y, r: h.r || 25, "class": "hl " + (h.cls || "") }, self.hiLayer);
     });
   };
+  MapView.prototype.routeGeom = function (r) {
+    return this.s.routes.concat(this.s.ferries).filter(function (g) {
+      return g.e.t === r.t && ((g.e.a === r.a && g.e.b === r.b) || (g.e.a === r.b && g.e.b === r.a));
+    })[0];
+  };
   MapView.prototype.showRoutes = function (routes) {
     // routes: [{a, b, t}] drawn as a bright glow (e.g. the selected move)
     this.clear(this.routeHi);
     var self = this;
     routes.forEach(function (r) {
-      var geom = self.s.routes.concat(self.s.ferries).filter(function (g) {
-        return g.e.t === r.t && ((g.e.a === r.a && g.e.b === r.b) || (g.e.a === r.b && g.e.b === r.a));
-      })[0];
+      var geom = self.routeGeom(r);
       if (geom) el("path", { d: geom.d, "class": "route-glow" }, self.routeHi);
     });
+  };
+  MapView.prototype.showOptions = function (routes) {
+    // routes: [{a, b, t}] the lines a piece can take this turn, lit in their own colour.
+    var key = JSON.stringify(routes);
+    if (key === this._optKey) return; // re-rendering every event would restart the animation
+    this._optKey = key;
+    this.clear(this.optHi);
+    var self = this;
+    routes.forEach(function (r) {
+      var geom = self.routeGeom(r);
+      if (!geom) return;
+      el("path", { d: geom.d, "class": "opt-under" }, self.optHi);
+      el("path", { d: geom.d, "class": "opt-line", stroke: COL[r.t] }, self.optHi);
+    });
+  };
+  MapView.prototype.trail = function (routes) {
+    // routes: [{a, b, t}] the move just made: a glow along the line that fades out.
+    var self = this;
+    this.clear(this.trailHi);
+    clearTimeout(this._trailT);
+    routes.forEach(function (r) {
+      var geom = self.routeGeom(r);
+      if (geom) el("path", { d: geom.d, "class": "trail", stroke: COL[r.t] }, self.trailHi);
+    });
+    this._trailT = setTimeout(function () { self.clear(self.trailHi); }, 3200);
   };
   MapView.prototype.setTokens = function (tokens) {
     // tokens: [{id, n, label, color, ring, text, ghost, halo, tag}]; kept by id so moves glide.

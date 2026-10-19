@@ -186,6 +186,14 @@
       if (ev.dbl && s.xStep === 0) tip("double-seen");
     }
     if (ev && ev.t === "d" && s.history.length) tip("handover");
+    // Light up the line the piece just travelled. Detectives' moves are public; Mr. X's only
+    // on his own device.
+    var last = s.history[s.history.length - 1];
+    if (mv && ev && ev.t === "d" && last && last.k === "d") mv.trail(linesFor(last.from, last.to, last.tk).slice(0, 1).map(function (t) { return { a: last.from, b: last.to, t: t }; }));
+    if (mv && ev && ev.t === "x" && ctl.view === "x" && ctl.route()) {
+      var rt = ctl.route(), xa = rt[rt.length - 2], xb = rt[rt.length - 1];
+      if (xa && xb) mv.trail(linesFor(xa, xb, ev.tk).slice(0, 1).map(function (t) { return { a: xa, b: xb, t: t }; }));
+    }
     if (s.history.some(function (h) { return h.k === "skip"; })) tip("stuck");
     if (s.pending === "over" && ctl.opts.mode === "solo") S.set("resume", null);
     if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(function () { if (!ui.replay) showEnd(); }, 500); return; }
@@ -209,6 +217,22 @@
     if (who === "x") return ctl.xOptions();
     if (who === "det") { var i = selectedDet(); return i >= 0 ? R.detOptions(board, ctl.s, i) : []; }
     return [];
+  }
+  // Which line a ticket travels between two stations (a black ticket can be any of them; the
+  // ferry if that is the link, otherwise each land line that joins them).
+  function linesFor(from, to, tk) {
+    if (tk !== "black") return [tk];
+    if (board.adj.ferry[from].indexOf(to) >= 0) return ["ferry"];
+    return ["taxi", "bus", "underground"].filter(function (k) { return board.adj[k][from].indexOf(to) >= 0; });
+  }
+  function optionRoutes() {
+    var who = myTurn(), from = who === "x" ? ctl.secret.pos : who === "det" && selectedDet() >= 0 ? ctl.s.dets[selectedDet()].pos : null;
+    if (!from || ui.replay) return [];
+    var out = [], seen = {};
+    currentOptions().forEach(function (o) {
+      linesFor(from, o.to, o.tk).forEach(function (t) { var k = o.to + t; if (!seen[k]) { seen[k] = 1; out.push({ a: from, b: o.to, t: t }); } });
+    });
+    return out;
   }
   function groupByStation(opts) {
     var by = {}, order = [];
@@ -335,6 +359,7 @@
     if (!mv) return;
     mv.prefer = ui.replay ? [] : groupByStation(currentOptions()).map(function (g) { return g.to; });
     mv.highlight(highlights());
+    mv.showOptions(optionRoutes());
     var t = tokens();
     mv.setTokens(t);
     if (mini) { mini.highlight(highlights()); mini.setTokens(t); }
@@ -782,7 +807,7 @@
       setTab("map");
       mv.focus(n, Math.max(1, mv.scale()));
       var who = myTurn(), from = who === "x" ? ctl.secret.pos : who === "det" ? ctl.s.dets[selectedDet()].pos : null;
-      if (from) mv.showRoutes(currentOptions().filter(function (o) { return o.to === n; }).map(function (o) { return { a: from, b: n, t: o.tk === "black" ? (board.adj.ferry[from].indexOf(n) >= 0 ? "ferry" : ["taxi", "bus", "underground"].filter(function (k) { return board.adj[k][from].indexOf(n) >= 0; })[0]) : o.tk }; }));
+      if (from) mv.showRoutes(currentOptions().filter(function (o) { return o.to === n; }).map(function (o) { return { a: from, b: n, t: linesFor(from, n, o.tk)[0] }; }));
       setTimeout(function () { mv.showRoutes([]); }, 2500);
       return;
     }
