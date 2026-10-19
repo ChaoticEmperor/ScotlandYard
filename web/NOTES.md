@@ -45,7 +45,7 @@ Each of the 200 entries has `number` 0-199.
 | Mr. X tickets | Taxi 99, Bus 99, Underground 99, **Black 5**, a fixed number independent of detective count. | `GameInitializer`, `MrX` |
 | Double moves | **Not implemented.** | |
 | Ticket handover | **Not implemented.** Detectives' spent tickets do not go to Mr. X. | `MoveCommand` |
-| Move validity | Target is in bounds, differs from the current station, the matching neighbour set contains it, tickets are above 0, and the target is not occupied by a detective. Detectives are not allowed onto Mr. X's station in the empty-check, but landing on him is how they win, see below. | `Controller.validateMove` |
+| Move validity | Target is in bounds, differs from the current station, the matching neighbour set contains it, tickets are above 0, and the target is not occupied by a detective. Detectives cannot share a station with each other. The occupancy check skips Mr. X for detectives, so a detective may move onto him, which is the capture move. | `Controller.validateMove` |
 | Bus and underground | A bus ticket needs a Bus or Underground station. An underground ticket needs an Underground station. | `Controller.isMeanOfTransportValid` |
 | Black ticket | Mr. X only. Works on any normal neighbour edge, so it hides the transport used. | `Controller.isBlackMoveValid` |
 | Mr. X start | Random from 13 positions: 35, 45, 51, 71, 78, 104, 106, 127, 132, 146, 166, 170, 172. | `GameInitializer` |
@@ -77,7 +77,7 @@ Where the repo and the brief agree (24 rounds, reveals after 3/8/13/18/24, 199 s
 ## Open questions before Step 2
 
 1. **Ferries.** The repo has none. The official board has four ferry links, which need a black ticket. I would add them to `graph.json` as a separate `ferry` edge type, in the chain 194-157-115-108-100, which are all existing stations in the repo's graph. The other choice is to invent ferry links on the original layout. I recommend the official chain, written in the notes as an addition not derived from the repo.
-2. **The two asymmetric taxi edges.** Treat 13-24 and 13-14 as real, or drop them? I recommend including both, since it avoids losing connectivity and the official board has them.
+2. **The two asymmetric taxi edges.** Treat 13-24 and 13-14 as real, or drop them? Connectivity does not depend on them, so this is a judgement call. I recommend dropping neither unless you know they are errors: keeping both makes the edge list symmetric by union, and I cannot verify against the official board from here.
 3. **Prototype.** The zip contained only `index.html`, with no `map-preview.png`. I copied it to `/web-prototype/index.html`. For Step 3 I will work from the prototype's procedural painter, and use the style description in the brief for the terrain. If you have the preview image, please add it.
 
 ## Note on the prototype
