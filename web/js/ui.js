@@ -328,6 +328,7 @@
   }
   function renderMap() {
     if (!mv) return;
+    mv.prefer = ui.replay ? [] : groupByStation(currentOptions()).map(function (g) { return g.to; });
     mv.highlight(highlights());
     var t = tokens();
     mv.setTokens(t);
@@ -654,11 +655,11 @@
     var s = ctl.s, v = ctl.verdict;
     var winner = v ? "det" : s.winner;
     var reason = v ? XN() + " broke the rules: " + v.problems[0] + "." : s.reason.replace(/Mr\. X/g, XN());
-    return { winner: winner, title: winner === "x" ? XN() + " wins" : "The detectives win", reason: reason };
+    return { winner: winner, title: winner === "x" ? XN() + " wins" : winner === "det" ? "The detectives win" : "Game ended", reason: reason };
   }
   function showEnd() {
     var route = ctl.route(), w = outcome();
-    var youWin = ctl.spectator ? null : (w.winner === "x") === !!ctl.humanX;
+    var youWin = ctl.spectator || !w.winner ? null : (w.winner === "x") === !!ctl.humanX;
     var me = ctl.myName ? ctl.myName() : "";
     overlay('<h2 class="disp">' + esc(youWin === null ? w.title : youWin ? "You win" + (me ? ", " + me : "") + "!" : "You lose" + (me ? ", " + me : "")) + "</h2><p>" + esc(w.reason) + "</p>" +
       (route ? '<p class="note">' + esc(xLabel()) + "'s route: " + route.join(" → ") + "</p>" : "") +

@@ -166,7 +166,14 @@
   };
   // Nearest station to a point, within a 26px board radius (52px target at 1:1) or 22 screen px when zoomed out.
   MapView.prototype.stationAt = function (ux, uy) {
-    var best = 0, bd = Math.max(26, 22 / this.scale());
+    // Glowing move targets win within ~44 screen px, so a slightly-off tap still picks the move.
+    var self = this, sc = this.scale(), pick = 0, pd = Math.max(30, 44 / sc);
+    (this.prefer || []).forEach(function (n) {
+      var p = self.b.pos[n], d = Math.hypot(p.x - ux, p.y - uy);
+      if (d < pd) { pd = d; pick = n; }
+    });
+    if (pick) return pick;
+    var best = 0, bd = Math.max(26, 22 / sc);
     for (var i = 1; i <= this.b.N; i++) {
       var p = this.b.pos[i], d = Math.hypot(p.x - ux, p.y - uy);
       if (d < bd) { bd = d; best = i; }
@@ -203,7 +210,7 @@
       }
     });
     function up(e) {
-      if (drag && drag.moved < 8 && Object.keys(ptrs).length === 1) {
+      if (drag && drag.moved < 14 && Object.keys(ptrs).length === 1) { // a finger wobbles; up to 14px is still a tap
         var u = self.toUser(e.clientX, e.clientY), n = self.stationAt(u.x, u.y);
         if (n) self.onTap(n);
       }

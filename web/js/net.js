@@ -158,7 +158,7 @@
   // Who may author an entry, given the current seats and referee mode.
   function authorFor(sess, ev) {
     var seats = sess.seats || {}, xAuthor = sess.settings.referee === "trusted" ? "host" : seats.mrx;
-    if (ev.t === "setup" || ev.t === "start" || ev.t === "seat" || ev.t === "sys" || ev.t === "rename") return "host";
+    if (ev.t === "setup" || ev.t === "start" || ev.t === "seat" || ev.t === "sys" || ev.t === "rename" || ev.t === "end") return "host";
     if (ev.t === "d") return seats.pawns && seats.pawns[ev.i];
     return xAuthor; // commit0, x, probe, trapped, route
   }
@@ -185,17 +185,25 @@
     } else if (ev.t === "rename") {
       var r = sess.roster && sess.roster[ev.id];
       if (r) { var was = labelOf(sess, ev.id); r.name = ev.name; r.alias = ev.alias; note(sess, was + " is now " + labelOf(sess, ev.id) + "."); }
+    } else if (ev.t === "end") {
+      // The game master ended a game that can't continue (e.g. Mr. X left a verified game).
+      if (sess.state && sess.state.pending !== "over") {
+        sess.state.pending = "over"; sess.state.winner = null; sess.state.reason = ev.reason || "The game master ended the game.";
+        sess.state.history.push({ k: "end", winner: null, reason: sess.state.reason });
+      }
     } else if (ev.t === "sys") note(sess, ev.text);
     sess.entries.push(entry);
   }
   function note(sess, text) { if (sess.state) sess.state.history.push({ k: "sys", text: text, turn: sess.state.turn }); else (sess.pendingNotes = sess.pendingNotes || []).push(text); }
   // "Moriarty (Flora)" when a player set an alias, otherwise just "Flora".
   function labelOf(sess, id) {
+    if (id === "ai") return "computer";
     var p = (sess.roster || sess.players || {})[id] || (sess.lobby && sess.lobby.players[id]);
     if (!p) return "someone";
     return p.alias ? p.alias + " (" + p.name + ")" : p.name;
   }
-  function nameOf(sess, id) { var p = (sess.roster || sess.players || {})[id]; return id === sess.myId ? "you" : p ? p.name : id === "host" ? "the game master" : "someone"; }
+  function nameOf(sess, id) {
+    if (id === "ai") return "the computer"; var p = (sess.roster || sess.players || {})[id]; return id === sess.myId ? "you" : p ? p.name : id === "host" ? "the game master" : "someone"; }
 
   // Full check of one entry against the session: author, signature (when keys exist) and rules.
   function verifyEntry(sess, entry) {
@@ -213,16 +221,18 @@
     if (ev.t === "start" && sess.state) return Promise.resolve("game already started");
     if (ev.t === "commit0" && sess.commit0) return Promise.resolve("start already committed");
     if (ev.t === "route" && (!sess.state || sess.state.pending !== "over")) return Promise.resolve("route revealed before the end");
-    var keys = ev.t === "setup" ? ev.players : sess.roster;
-    if (!subtle || !keys || !keys[entry.by] || !keys[entry.by].key) return Promise.resolve(subtle ? "unknown signing key" : null);
-    return verifySig(keys[entry.by].key, payload(sess.code, ctxOf(sess.state && RULE_EVENTS[ev.t] && ev.t !== "start" ? sess.state : null) + (RULE_EVENTS[ev.t] ? "" : ":" + ev.t), ev, entry.by), entry.sig)
+    if (ev.t === "end" && (!sess.state || sess.state.pending === "over")) return Promise.resolve("nothing to end");
+    if (ev.t === "seat" && ev.pawn === "mrx" && sess.settings.referee !== "trusted") return Promise.resolve("Mr. X's seat can't change in a verified game");
+    var keys = ev.t === "setup" ? ev.players : sess.roster, signer = entry.by === "ai" ? "host" : entry.by;
+    if (!subtle || !keys || !keys[signer] || !keys[signer].key) return Promise.resolve(subtle ? "unknown signing key" : null);
+    return verifySig(keys[signer].key, payload(sess.code, ctxOf(sess.state && RULE_EVENTS[ev.t] && ev.t !== "start" ? sess.state : null) + (RULE_EVENTS[ev.t] ? "" : ":" + ev.t), ev, entry.by), entry.sig)
       .then(function (ok) { return ok ? null : "bad signature from " + nameOf(sess, entry.by); });
   }
-  function signEntry(sess, ev) {
+  function signEntry(sess, ev, as) {
     var ctx = ctxOf(sess.state && RULE_EVENTS[ev.t] && ev.t !== "start" ? sess.state : null) + (RULE_EVENTS[ev.t] ? "" : ":" + ev.t);
-    var entry = { ev: ev, by: sess.myId };
+    var by = as || sess.myId, entry = { ev: ev, by: by };
     if (!subtle || !sess.keys) return Promise.resolve(entry);
-    return sign(sess.keys, payload(sess.code, ctx, ev, sess.myId)).then(function (sig) { entry.sig = sig; return entry; });
+    return sign(sess.keys, payload(sess.code, ctx, ev, by)).then(function (sig) { entry.sig = sig; return entry; });
   }
 
   // End-of-game audit: replays the public log against Mr. X's revealed route and salts.
@@ -271,13 +281,18 @@
     for (var i = 0; i < (seats.pawns || []).length; i++) if (seats.pawns[i] === sess.myId) this.myDets.push(i);
     this.aiDets = [];
     this.isGM = sess.myId === "host";
-    var seesX = this.humanX || (sess.settings.referee === "trusted" && this.isGM);
+    var watching = this.isGM && !this.humanX && !this.myDets.length && gmMayWatch(sess);
+    var seesX = this.humanX || (sess.settings.referee === "trusted" && this.isGM) || (watching && !!sess.peek);
     this.spectator = !this.humanX && !this.myDets.length;
     this.view = seesX ? "x" : "det";
-    this.secret = sess.secret || null;
+    this.secret = sess.secret || (watching ? sess.peek : null) || null;
     this.offline = sess.offline;
     this.verdict = sess.audit && !sess.audit.ok ? sess.audit : null;
   };
+  // A non-playing game master may watch Mr. X (lobby option, visible to everyone).
+  function gmMayWatch(sess) {
+    return !!sess.settings.gmSeesX && sess.seats && sess.seats.mrx !== "host" && sess.seats.pawns.indexOf("host") < 0;
+  }
   NetController.prototype.ready = function () { return !!(this.s && this.sess.commit0); };
   // While a move is on its way, the same state can't send another (no double taps).
   NetController.prototype.locked = function () { return this.sess.lock != null && this.sess.lock === this.s.events.length; };
@@ -353,7 +368,11 @@
       sess.author(ev);
     });
   }
-  function saveSecret(sess) { S.set("xsecret." + sess.code, sess.secret); if (sess.role === "host") persistHost(sess); }
+  function saveSecret(sess) {
+    S.set("xsecret." + sess.code, sess.secret);
+    if (sess.role === "host") persistHost(sess);
+    else if (gmMayWatch(sess)) sess.send({ t: "peek", secret: { pos: sess.secret.pos, start: sess.secret.start, route: sess.secret.route } });
+  }
 
   // Automatic steps for the secret holder: commit to a start, answer capture checks, report a
   // trap, and reveal the route at the end.
@@ -390,7 +409,7 @@
   function baseSession(role, code) {
     var sess = {
       role: role, code: code, myId: role === "host" ? "host" : S.deviceId(), name: S.settings().name || "Player",
-      entries: [], state: null, seats: null, settings: { referee: C.net.defaultReferee, tactical: false, nDet: C.rules.detectivePawns },
+      entries: [], state: null, seats: null, settings: { referee: C.net.defaultReferee, tactical: false, gmSeesX: true, nDet: C.rules.detectivePawns },
       players: {}, roster: null, commit0: null, routeEntry: null, audit: null, secret: null, keys: null, offline: false,
       queue: Promise.resolve(), ctl: null, closed: false, gameId: null
     };
@@ -580,6 +599,10 @@
         holderMove(sess, { to: m.opt.to, tk: m.opt.tk }, !!m.dbl);
       } else if (m.t === "sync?") conn.send({ t: "sync", entries: sess.entries });
       else if (m.t === "profile" && who) hostProfile(sess, who, m.name, m.alias);
+      else if (m.t === "peek" && who && sess.seats && sess.seats.mrx === who && gmMayWatch(sess) && m.secret) {
+        sess.peek = { pos: m.secret.pos | 0, start: m.secret.start | 0, route: (m.secret.route || []).map(function (n) { return n | 0; }) };
+        sess.emit();
+      }
     };
     h.close = function () {
       if (who && sess.conns[who] === conn) {
@@ -644,6 +667,27 @@
   }
   function hostAuto(sess) {
     if (sess.settings.referee === "trusted" && sess.seats) sendSecretTo(sess, sess.seats.mrx);
+    var s = sess.state, board = FY.UI.board;
+    if (!s || s.pending === "over" || sess.aiBusy || !sess.seats) return;
+    var job = null;
+    if (s.pending === "det") {
+      var ai = [];
+      sess.seats.pawns.forEach(function (id, i) { if (id === "ai" && !s.moved[i] && R.detOptions(board, s, i).length) ai.push(i); });
+      if (ai.length) job = function () { var mv = FY.AI.chooseDet(board, s, Math.random, ai, "normal"); return signEntry(sess, { t: "d", i: mv.i, to: mv.to, tk: mv.tk }, "ai").then(function (e) { return hostAccept(sess, e, null); }); };
+    } else if (s.pending === "x" && sess.seats.mrx === "ai" && sess.settings.referee === "trusted" && sess.secret && sess.commit0) {
+      job = function () {
+        if (!sess.xPlan || !sess.xPlan.moves.length) sess.xPlan = FY.AI.chooseX(board, s, sess.secret, Math.random, "normal");
+        var o = sess.xPlan.moves.shift();
+        if (!o) return Promise.resolve();
+        holderMove(sess, o, sess.xPlan.double);
+        return Promise.resolve();
+      };
+    }
+    if (!job) return;
+    sess.aiBusy = true;
+    setTimeout(function () {
+      job().then(function () { sess.aiBusy = false; sess.emit(); }, function () { sess.aiBusy = false; });
+    }, C.ai.thinkMs);
   }
 
   function broadcastLobby(sess) {
@@ -700,6 +744,8 @@
     sess.broadcast({ t: "reset" });
     return sess.author({ t: "setup", seats: seats, players: roster, settings: sess.settings }).then(function () {
       return sess.author(made.start);
+    }).then(function () {
+      if (gmMayWatch(sess) && sess.settings.referee !== "trusted") return sess.author({ t: "sys", text: "The game master is watching and can see Mr. X." });
     });
   }
 
@@ -760,6 +806,7 @@
   function guestMsg(sess, m) {
     if (!m || typeof m !== "object") return;
     if (m.t === "bye") { if (sess.lost) sess.lost(); return; }
+    if (m.t === "welcome" && sess.secret && gmMayWatch(sess)) setTimeout(function () { saveSecret(sess); }, 300);
     if (m.t === "welcome") { sess.everJoined = true; sess.lostAt = 0; sess.offline = false; sess.emit(); }
     else if (m.t === "lobby") { sess.lobby = m.info; if (!sess.state) renderLobby(); }
     else if (m.t === "reset") { sess.entries = []; sess.state = null; sess.commit0 = null; sess.routeEntry = null; sess.audit = null; sess.problem = null; sess.queue = Promise.resolve(); if (sess.ctl) { sess.ctl.destroy(); sess.ctl = null; } }
@@ -926,6 +973,8 @@
         '<button type="button" aria-checked="' + (st.referee === "trusted") + '" data-ref="trusted">Trusted game master</button></div></label>';
       h += '<p class="note">' + (st.referee === "verified" ? "Nobody can cheat unnoticed: moves are signed on each player's device, Mr. X's position never leaves his device, and every device checks his whole route at the end." : "Simpler: your device holds Mr. X's position and you can see it. Players must trust you.") + "</p>";
       h += '<label class="switch"><input type="checkbox" data-net="tactical"' + (st.tactical ? " checked" : "") + "><span>Allow tactical hints for everyone</span></label>";
+      var hostRole = info.roles.host;
+      h += '<label class="switch"><input type="checkbox" data-net="gmsees"' + (st.gmSeesX && hostRole === "watch" ? " checked" : "") + (hostRole === "watch" ? "" : " disabled") + "><span>Game master can watch Mr. X" + (hostRole === "watch" ? " (everyone is told)" : " (only when you're watching, not playing)") + "</span></label>";
       h += '<div class="row"><button class="btn grow" data-net="shuffle">Random Mr. X</button></div>';
       h += piecesNote(sess, info);
       var prob = lobbyProblem(sess);
@@ -933,22 +982,37 @@
       h += '<button class="btn pri big" data-net="start"' + (prob ? " disabled" : "") + ">Start game</button>";
     } else {
       h += piecesNote(sess, info);
-      h += '<p class="note">Referee: ' + (st.referee === "verified" ? "verified (no one can cheat unnoticed)" : "trusted game master (the game master can see Mr. X)") + (st.tactical ? "; tactical hints allowed" : "") + ".</p>";
+      h += '<p class="note">Referee: ' + (st.referee === "verified" ? "verified (no one can cheat unnoticed)" : "trusted game master (the game master can see Mr. X)") + (st.tactical ? "; tactical hints allowed" : "") + (st.gmSeesX && info.roles.host === "watch" ? "; the game master can watch Mr. X" : "") + ".</p>";
       h += '<p class="note">' + (sess.offline ? "Connection lost. Reconnecting…" : "Waiting for the game master to start.") + " Compare the 🔑 fingerprints out loud to be sure nobody is impersonated.</p>";
     }
     $("#onlineInner").innerHTML = h;
   }
 
+  // Game master: hand pieces to other players or the computer, remove a player who left, or end
+  // a game that can't continue.
   function seatsDialog(sess) {
     if (!sess.state) return;
-    var ids = Object.keys(sess.players), h = '<h2 class="disp">Players and seats</h2><p class="note">Hand a piece to another player, for example when someone has left.</p><div class="plist">';
+    var trusted = sess.settings.referee === "trusted", over = sess.state.pending === "over";
+    var ids = Object.keys(sess.players);
+    var opt = function (id, cur) { return '<option value="' + id + '"' + (id === cur ? " selected" : "") + ">" + FY.UI.esc(labelOf(sess, id)) + (id !== "ai" && sess.players[id] && !sess.players[id].online ? " (offline)" : "") + "</option>"; };
+    var h = '<h2 class="disp">Players and seats</h2><p class="note">Hand a piece to another player or to the computer, for example when someone leaves.</p><div class="sect">Pieces</div><div class="plist">';
     var rows = [{ key: "mrx", label: "Mr. X", id: sess.seats.mrx }].concat(sess.seats.pawns.map(function (id, i) { return { key: i, label: "D" + (i + 1), id: id }; }));
     rows.forEach(function (r) {
-      var lock = r.key === "mrx" && sess.settings.referee !== "trusted";
-      h += '<div class="pl"><span class="who">' + r.label + "</span><select data-seat=\"" + r.key + '"' + (lock ? " disabled" : "") + ' aria-label="Who plays ' + r.label + '">' +
-        ids.map(function (id) { return '<option value="' + id + '"' + (id === r.id ? " selected" : "") + ">" + FY.UI.esc(labelOf(sess, id)) + (sess.players[id].online ? "" : " (offline)") + "</option>"; }).join("") + "</select></div>";
+      var lock = r.key === "mrx" && !trusted;
+      var choices = ids.concat(r.key === "mrx" && !trusted ? [] : ["ai"]);
+      h += '<div class="pl"><span class="who">' + r.label + "</span><select data-seat=\"" + r.key + '"' + (lock || over ? " disabled" : "") + ' aria-label="Who plays ' + r.label + '">' +
+        choices.map(function (id) { return opt(id, r.id); }).join("") + "</select></div>";
     });
-    h += '</div><p class="note">' + (sess.settings.referee === "trusted" ? "" : "In verified games Mr. X can't be handed over: only his device knows where he is.") + '</p><button class="btn pri" data-act="close">Done</button>';
+    h += '</div><div class="sect">Players</div><div class="plist">';
+    ids.filter(function (id) { return id !== "host"; }).forEach(function (id) {
+      var p = sess.players[id];
+      h += '<div class="pl"><span class="who">' + FY.UI.esc(labelOf(sess, id)) + (p.online ? "" : ' <span class="off">offline</span>') + "</span>" +
+        (over ? "" : '<button class="btn sm" data-remove="' + id + '">Remove</button>') + "</div>";
+    });
+    h += "</div>";
+    if (!trusted) h += '<p class="note">In verified games only Mr. X\'s phone knows where he is, so his seat can\'t be handed over. If Mr. X leaves for good, end the game.</p>';
+    if (!over) h += '<button class="btn" data-endgame="1">End the game</button>';
+    h += '<button class="btn pri" data-act="close">Done</button>';
     FY.UI.overlay(h, function (card) {
       card.querySelectorAll("select").forEach(function (sel) {
         sel.onchange = function () {
@@ -956,6 +1020,37 @@
           sess.author({ t: "seat", pawn: k === "mrx" ? "mrx" : +k, to: sel.value });
         };
       });
+      card.querySelectorAll("[data-remove]").forEach(function (b) { b.onclick = function () { removeDialog(sess, b.getAttribute("data-remove")); }; });
+      var eg = card.querySelector("[data-endgame]");
+      if (eg) eg.onclick = function () {
+        if (!eg.dataset.sure) { eg.dataset.sure = 1; eg.textContent = "Tap again to end the game for everyone"; return; }
+        sess.author({ t: "end", reason: "The game master ended the game." });
+        FY.UI.closeLayers();
+      };
+    });
+  }
+  function removeDialog(sess, id) {
+    var mine = [], isX = sess.seats.mrx === id, trusted = sess.settings.referee === "trusted";
+    sess.seats.pawns.forEach(function (p, i) { if (p === id) mine.push(i); });
+    var others = Object.keys(sess.players).filter(function (k) { return k !== id; });
+    var h = '<h2 class="disp">Remove ' + FY.UI.esc(labelOf(sess, id)) + "?</h2>" +
+      "<p>" + (mine.length ? "Their detective" + (mine.length > 1 ? "s " : " ") + mine.map(function (i) { return "D" + (i + 1); }).join(", ") + " will be played by:" : "They have no pieces.") + "</p>";
+    if (mine.length) h += '<select class="txt" id="rmTo">' + ["ai"].concat(others).map(function (k) { return '<option value="' + k + '">' + FY.UI.esc(k === "ai" ? "The computer" : labelOf(sess, k)) + "</option>"; }).join("") + "</select>";
+    if (isX) h += '<p class="note">' + (trusted ? "Mr. X will be played by the computer." : "They are Mr. X: in a verified game only their phone knows where he is, so removing them ends the game.") + "</p>";
+    h += '<div class="row"><button class="btn pri grow" id="rmGo">Remove</button><button class="btn grow" data-act="close">Cancel</button></div>';
+    FY.UI.overlay(h, function (card) {
+      card.querySelector("#rmGo").onclick = function () {
+        var to = card.querySelector("#rmTo") ? card.querySelector("#rmTo").value : "ai";
+        var steps = mine.map(function (i) { return { t: "seat", pawn: i, to: to }; });
+        if (isX && trusted) steps.push({ t: "seat", pawn: "mrx", to: "ai" });
+        steps.push({ t: "sys", text: labelOf(sess, id) + " was removed by the game master." });
+        if (isX && !trusted) steps.push({ t: "end", reason: "Mr. X left the game, so it was ended." });
+        (sess.banned = sess.banned || {})[id] = true;
+        var c = sess.conns[id];
+        if (c) { try { c.send({ t: "error", text: "The game master removed you from this game." }); } catch (e) {} setTimeout(function () { try { c.close(); } catch (e) {} }, 200); }
+        steps.reduce(function (p, ev) { return p.then(function () { return sess.author(ev); }); }, Promise.resolve()).then(function () { persistHost(sess); });
+        FY.UI.closeLayers();
+      };
     });
   }
   function profileDialog(sess) {
@@ -1027,6 +1122,7 @@
   document.addEventListener("change", function (e) {
     var t = e.target;
     if (t.getAttribute && t.getAttribute("data-net") === "tactical" && current) { current.settings.tactical = t.checked; broadcastLobby(current); }
+    if (t.getAttribute && t.getAttribute("data-net") === "gmsees" && current) { current.settings.gmSeesX = t.checked; broadcastLobby(current); }
   });
 
   document.addEventListener("visibilitychange", function () {

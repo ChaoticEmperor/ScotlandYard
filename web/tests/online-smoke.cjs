@@ -163,12 +163,75 @@ function serve() {
     for (const n of names) await pages[n].close();
   }
 
+  // The game master only watches: sees Mr. X, removes a detective (the computer takes over),
+  // and finally a game where Mr. X is removed, which ends it.
+  async function gmGame() {
+    const h = await open("h"), a = await open("a"), b = await open("b");
+    await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
+    const code = (await h.textContent(".codebig")).trim();
+    for (const g of [a, b]) { await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); }
+    await h.waitForFunction(() => document.querySelectorAll(".pl").length === 3, null, { timeout: 15000 });
+    const ids = (await h.evaluate(() => Object.keys(FY.Net.session.players))).filter((id) => id !== "host");
+    await h.click('[data-role="x"][data-pid="' + ids[0] + '"]');
+    await h.click('[data-role="watch"][data-pid="host"]');
+    await h.click('[data-role="det"][data-pid="' + ids[1] + '"]');
+    const sees = await h.isChecked("[data-net=gmsees]");
+    if (!sees) errors.push("gm: 'game master can watch Mr. X' should default on");
+    await h.click("[data-net=start]");
+    for (const p of [h, a, b]) await p.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
+    // Play a few moves, then compare what the game master sees with Mr. X's real position.
+    for (let k = 0; k < 40 && (await h.evaluate(() => FY.UI.controller.s.log.length)) < 3; k++) {
+      for (const p of [a, b]) { const btn = await p.$("#vPlay .mv .tkb button"); if (btn) await btn.click().catch(() => {}); }
+      await h.waitForTimeout(150);
+    }
+    await h.waitForTimeout(600);
+    const truth = await a.evaluate(() => FY.Net.session.secret.pos);
+    const gm = await h.evaluate(() => ({ view: FY.UI.controller.view, pos: FY.UI.controller.secret && FY.UI.controller.secret.pos }));
+    if (gm.view !== "x" || gm.pos !== truth) errors.push("gm: game master should see Mr. X at " + truth + ", saw " + JSON.stringify(gm));
+    else console.log("  game master sees Mr. X at", truth);
+    // Remove the detective player: their pieces go to the computer.
+    await h.click("#gMenu"); await h.click("[data-act=seats]");
+    await h.click('[data-remove="' + ids[1] + '"]');
+    await h.selectOption("#rmTo", "ai");
+    await h.click("#rmGo");
+    await b.waitForFunction(() => /removed you/.test(document.body.textContent), null, { timeout: 10000 }).catch(() => errors.push("gm: removed player not told"));
+    const done = await playUntilOver({ h, a }, {});
+    await h.waitForTimeout(1000);
+    const r = await h.evaluate(() => ({ over: FY.UI.controller.s.pending, ai: FY.Net.session.seats.pawns.every((p) => p === "ai"), audit: FY.Net.session.audit && FY.Net.session.audit.ok, problem: FY.Net.session.problem || null, reason: FY.UI.controller.s.reason }));
+    console.log("gm game (computer took over the detectives):", done ? "finished" : "DID NOT FINISH", JSON.stringify(r));
+    if (!r.ai || r.over !== "over" || r.audit !== true || r.problem) errors.push("gm: " + JSON.stringify(r));
+    // Rematch with the same lobby, then remove Mr. X: a verified game ends.
+    for (const p of [h, a, b]) await p.close();
+  }
+
+  async function removeXGame() {
+    const h = await open("h"), a = await open("a"), b = await open("b");
+    await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
+    const code = (await h.textContent(".codebig")).trim();
+    for (const g of [a, b]) { await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); }
+    await h.waitForFunction(() => document.querySelectorAll(".pl").length === 3, null, { timeout: 15000 });
+    const ids = (await h.evaluate(() => Object.keys(FY.Net.session.players))).filter((id) => id !== "host");
+    await h.click('[data-role="x"][data-pid="' + ids[0] + '"]');
+    await h.click("[data-net=start]");
+    for (const p of [h, a, b]) await p.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
+    await h.waitForTimeout(800);
+    await h.click("#gMenu"); await h.click("[data-act=seats]");
+    await h.click('[data-remove="' + ids[0] + '"]');
+    await h.click("#rmGo");
+    await b.waitForFunction(() => FY.UI.controller && FY.UI.controller.s.pending === "over", null, { timeout: 10000 }).catch(() => errors.push("removing Mr. X did not end the game"));
+    console.log("remove Mr. X:", await b.evaluate(() => FY.UI.controller.s.reason));
+    for (const p of [h, a, b]) await p.close();
+  }
+
   if (process.env.FY_PLAYERS === "8") await bigGame();
+  else if (process.env.FY_GM) { await gmGame(); await removeXGame(); }
   else if (peer) await game("verified", "a", { reloadGuest: true });
   else {
     await game("verified", "a", { reloadGuest: true, reloadHost: true });
     await game("trusted", "b", { reloadGuest: true });
     await game("verified", "h", {});
+    await gmGame();
+    await removeXGame();
   }
   await browser.close();
   srv.close();

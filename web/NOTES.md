@@ -317,3 +317,22 @@ Leaving on purpose (*Leave game*, or *Leave* in the lobby) or finishing a game c
 - **Offline caching.** A service worker (`sw.js`, stamped by `tools/package.py`) caches the site and the pinned CDN files, so solo games load with no internet after one visit. There is also a web app manifest with icons for "Add to Home Screen". Online games still need internet.
 
 Tests: `tests/offline-identity.cjs` covers offline loading and play, the second-tab takeover, the game master joining their own game, removal and away recovery.
+
+## Game master tools (second round of field feedback)
+
+- **Watching Mr. X.** *Game master can watch Mr. X* is on by default when the game master isn't playing. Mr. X's device privately sends his position to the game master after each move. Everyone sees the setting in the lobby, and the log says so at the start. It is off whenever the game master holds a detective, and Mr. X's device refuses to send in that case. In trusted mode the game master always sees him.
+- **Removing a player mid-game.** *Players and seats* → **Remove**.
+  - Their detectives go to another player or to **the computer**. The game master's device plays them; entries are authored as `ai` and signed with the game master's key.
+  - In trusted games Mr. X can go to the computer too.
+  - In verified games only Mr. X's phone knows his position, so removing Mr. X ends the game (a host-signed `end` entry). Every device rejects a Mr. X seat change in verified games.
+  - **End the game** is also available on its own.
+- **Map taps.** Tap slop was raised to 14 px, and taps snap to a glowing move target within about 44 screen px.
+- Tested by `tests/online-smoke.cjs`: a watching game master sees Mr. X's true position, the computer finishes a removed detective's game with a passing audit, and removing Mr. X ends a verified game.
+
+## On a "local hotspot like Mini Militia" mode
+
+Mini Militia is a native app: it finds players with LAN broadcasts and talks over local sockets, and it keeps running in the background. A web page can do neither. Browsers have no LAN discovery or raw sockets, and they pause pages in the background.
+- **Possible in the browser:** a no-internet mode on a hotspot. Each guest pairs by scanning two QR codes (WebRTC offer/answer without a server). This works on Android hotspots. iPhone hotspots reportedly isolate devices.
+- **It wouldn't fix drops.** A dropped player would have to re-scan, and the drops people see come from phones sleeping or switching apps, which a local link suffers from too.
+- **The real fix** for Mini-Militia-style play would be a small Android app wrapper (e.g. Capacitor) with local networking and a background service.
+- **Recommended now:** deploy the latest build (false "offline" fixes, screen kept on, any message restores a player). Use a TURN server only if specific networks still fail.
