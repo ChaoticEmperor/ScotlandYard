@@ -197,3 +197,21 @@ Result:
 The ferry chain 108-115-157-194 becomes the river in the map art. The 8 places where taxi routes cross it are drawn as bridges.
 
 `tools/validate-layout.mjs` re-checks all of this.
+
+## Referee mode (anti-cheat option)
+
+The game master's device runs the turns, which by itself would let the game master cheat. So the game master picks a **referee mode** in the lobby. It is shown to everyone before they join and on the game screen.
+
+| | **Verified** (default) | **Trusted game master** |
+|---|---|---|
+| Who knows Mr. X's position | Only Mr. X's device | Mr. X's device **and the game master's** |
+| Detective moves | Signed on the player's own device (WebCrypto ECDSA P-256; public keys swapped in the lobby). The game master relays them but cannot forge or change them. | Sent to the game master, who applies them |
+| Rule checking | **Every device** keeps the full public log and re-checks turn order, tickets, occupancy, ticket handover, double/black use and reveal rounds after every event | The game master's device only |
+| Mr. X honesty | A SHA-256 commitment on each move. At game end the route and salts are revealed and **every device** audits them, including the capture and trap answers he gave. | The game master's device checks Mr. X's moves directly |
+| If someone cheats | Every device shows "Rule check failed" with the round and the reason. A false "not caught" answer reverses the result, for example "Detectives win: caught in round 7". | Not detectable |
+| If Mr. X disconnects | The game pauses until he returns | The game master can take over Mr. X |
+| Good for | Competitive games, or when the game master also plays | Casual games, or teaching with a non-playing game master who watches Mr. X |
+
+What Verified cannot prevent:
+- The game master can still stall the game by not relaying messages. Everyone sees the stall.
+- A lie from Mr. X is proven only at game end, which is inherent without a trusted third party. It still cannot go unnoticed.
