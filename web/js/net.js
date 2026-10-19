@@ -328,6 +328,23 @@
     if (id === this.sess.myId) return "you";
     return labelOf(this.sess, id);
   };
+  // Initials for each detective piece: "David" -> "Da", "Paul David" -> "PD" (alias if set).
+  // Clashing initials, or one player with several pieces, get a number: "Jo1", "Jo2".
+  function initials(name) {
+    var words = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "";
+    if (words.length > 1) return (Array.from(words[0])[0] + Array.from(words[1])[0]).toUpperCase();
+    var w = Array.from(words[0]);
+    return w.length > 1 ? w[0].toUpperCase() + w[1].toLowerCase() : w[0].toUpperCase();
+  }
+  NetController.prototype.pieceInitials = function (i) {
+    var sess = this.sess, pawns = sess.seats.pawns, ro = sess.roster || {};
+    var base = pawns.map(function (id) { var p = ro[id]; return id === "ai" || !p ? "" : initials(p.alias || p.name); });
+    if (!base[i]) return "";
+    var same = [];
+    base.forEach(function (b, k) { if (b === base[i]) same.push(k); });
+    return same.length > 1 ? base[i] + (same.indexOf(i) + 1) : base[i];
+  };
   NetController.prototype.xShort = function () {
     var p = (this.sess.roster || {})[this.sess.seats.mrx];
     return (p && p.alias) || "Mr. X";
@@ -715,8 +732,9 @@
     var roles = sess.lobbySeats.roles, ids = Object.keys(sess.players);
     var mrx = ids.filter(function (id) { return roles[id] === "x"; })[0];
     var dets = ids.filter(function (id) { return roles[id] === "det"; });
-    var n = sess.settings.nDet, pawns = [];
-    for (var i = 0; i < n; i++) pawns.push(dets[i % dets.length]);
+    var n = sess.settings.nDet, pawns = [], ai = sess.settings.extra === "computer";
+    // One piece per detective player first; extra pieces are shared out, or played by the computer.
+    for (var i = 0; i < n; i++) pawns.push(i < dets.length ? dets[i] : ai ? "ai" : dets[i % dets.length]);
     return { mrx: mrx, pawns: pawns };
   }
   function lobbyProblem(sess) {
@@ -924,14 +942,24 @@
     var roles = info.roles, ids = Object.keys(info.players), n = info.settings.nDet;
     var dets = ids.filter(function (id) { return roles[id] === "det"; });
     if (!dets.length) return "";
-    var by = {};
-    for (var i = 0; i < n; i++) (by[dets[i % dets.length]] = by[dets[i % dets.length]] || []).push("D" + (i + 1));
+    var by = {}, ai = info.settings.extra === "computer", comp = [];
+    for (var i = 0; i < n; i++) {
+      if (i >= dets.length && ai) { comp.push("D" + (i + 1)); continue; }
+      (by[dets[i % dets.length]] = by[dets[i % dets.length]] || []).push("D" + (i + 1));
+    }
     var lines = dets.map(function (id) {
       var p = info.players[id], nm = FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " (you)" : "");
       return nm + ": " + by[id].join(" and ");
     });
+    if (comp.length) lines.push("Computer: " + comp.join(", "));
     var shared = dets.some(function (id) { return by[id].length > 1; });
-    return '<div class="sect">Detective pieces</div><p class="note">' + lines.join("<br>") + (shared ? "<br>Some players control more than one detective" + (sess.role === "host" ? "; choose fewer pieces above if you prefer one each." : ".") : "") + "</p>";
+    var h = '<div class="sect">Detective pieces</div><p class="note">' + lines.join("<br>") + (shared ? "<br>Some players control more than one detective." : "") + "</p>";
+    if (sess.role === "host" && n > dets.length) {
+      h += '<label class="field"><span>Extra detective pieces</span><div class="seg">' +
+        '<button type="button" aria-checked="' + !ai + '" data-extra="share">Shared by players</button>' +
+        '<button type="button" aria-checked="' + ai + '" data-extra="computer">Played by the computer</button></div></label>';
+    }
+    return h;
   }
   var ui_edit = false;
   function renderLobby() {
@@ -1070,7 +1098,7 @@
 
   // ------------------------------------------------------------------ wiring
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-net],[data-role],[data-ndet],[data-ref]");
+    var t = e.target.closest("[data-net],[data-role],[data-ndet],[data-ref],[data-extra]");
     if (!t || !$("#onlineInner").contains(t)) return;
     var sess = current, a = t.getAttribute("data-net");
     if (t.hasAttribute("data-role") && sess && sess.role === "host") {
@@ -1079,6 +1107,7 @@
       sess.lobbySeats.roles[id] = role;
       return broadcastLobby(sess);
     }
+    if (t.hasAttribute("data-extra") && sess) { sess.settings.extra = t.getAttribute("data-extra"); return broadcastLobby(sess); }
     if (t.hasAttribute("data-ndet") && sess) { sess.settings.nDet = +t.getAttribute("data-ndet"); sess.settings.nDetManual = true; return broadcastLobby(sess); }
     if (t.hasAttribute("data-ref") && sess) { sess.settings.referee = t.getAttribute("data-ref"); return broadcastLobby(sess); }
     if (a === "back") { FY.UI.show("menu"); return; }

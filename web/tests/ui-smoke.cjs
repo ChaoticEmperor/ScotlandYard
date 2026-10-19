@@ -90,14 +90,14 @@ const out = process.argv[2] || null;
     await page.evaluate(() => {
       const b = document.createElement("a");
       b.textContent = "Powered by Netlify";
-      b.style.cssText = "position:fixed;right:16px;bottom:16px;width:220px;height:56px;border-radius:28px;background:#0d2b2b;color:#fff;z-index:2147483647";
+      // Like many hosting badges: injected late, on top, and letting taps fall through.
+      b.style.cssText = "position:fixed;right:16px;bottom:16px;width:220px;height:56px;border-radius:28px;background:#0d2b2b;color:#fff;z-index:2147483647;pointer-events:none";
       document.body.appendChild(b);
-      window.dispatchEvent(new Event("resize"));
     });
     await page.waitForTimeout(400);
     const after = await page.evaluate(() => {
-      const r = document.querySelector("#tLog").getBoundingClientRect();
-      return { room: document.body.classList.contains("overlay-room"), free: document.querySelector("#tabs").contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)) };
+      const r = document.querySelector("#tLog").getBoundingClientRect(), b = document.querySelector("body > a").getBoundingClientRect();
+      return { room: document.body.classList.contains("overlay-room"), free: r.bottom <= b.top + 1 || r.right <= b.left };
     });
     if (before) errors.push("badge: tab bar lifted with no badge present");
     if (!after.room || !after.free) errors.push("badge: tabs still covered " + JSON.stringify(after));

@@ -204,6 +204,34 @@ function serve() {
     for (const p of [h, a, b]) await p.close();
   }
 
+  // Two human detectives plus computer detectives; map pieces show the players' initials.
+  async function mixedGame() {
+    const h = await open("h"), a = await open("a"), b = await open("b");
+    await h.evaluate(() => { const k = "fogyard.h.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "Paul David"; localStorage.setItem(k, JSON.stringify(s)); });
+    await b.evaluate(() => { const k = "fogyard.b.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "David"; localStorage.setItem(k, JSON.stringify(s)); });
+    await h.reload(); await b.reload();
+    await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
+    const code = (await h.textContent(".codebig")).trim();
+    for (const g of [a, b]) { await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); }
+    await h.waitForFunction(() => document.querySelectorAll(".pl").length === 3, null, { timeout: 15000 });
+    const ids = (await h.evaluate(() => Object.keys(FY.Net.session.players))).filter((id) => id !== "host");
+    await h.click('[data-role="x"][data-pid="' + ids[0] + '"]');
+    await h.click('[data-ndet="5"]');
+    await h.click('[data-extra="computer"]');
+    await h.click("[data-net=start]");
+    for (const p of [h, a, b]) await p.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
+    const seats = await h.evaluate(() => FY.Net.session.seats.pawns);
+    if (JSON.stringify(seats) !== JSON.stringify(["host", ids[1], "ai", "ai", "ai"])) errors.push("mixed: seats " + JSON.stringify(seats));
+    await a.waitForTimeout(500);
+    const labels = await a.evaluate(() => [...document.querySelectorAll("#mapbox .tok .tokt")].map((t) => t.textContent));
+    for (const want of ["PD", "Da", "D3", "D4", "D5"]) if (!labels.includes(want)) errors.push("mixed: map label " + want + " missing in " + JSON.stringify(labels));
+    const done = await playUntilOver({ h, a, b }, {});
+    const r = await h.evaluate(() => ({ over: FY.UI.controller.s.pending, aiMoves: FY.UI.controller.s.history.filter((e) => e.k === "d" && e.i >= 2).length, audit: FY.Net.session.audit && FY.Net.session.audit.ok, problem: FY.Net.session.problem || null }));
+    console.log("mixed game (2 players + 3 computer detectives):", done ? "finished" : "DID NOT FINISH", "labels", JSON.stringify(labels), JSON.stringify(r));
+    if (r.over !== "over" || !r.aiMoves || r.audit !== true || r.problem) errors.push("mixed: " + JSON.stringify(r));
+    for (const p of [h, a, b]) await p.close();
+  }
+
   async function removeXGame() {
     const h = await open("h"), a = await open("a"), b = await open("b");
     await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
@@ -224,7 +252,7 @@ function serve() {
   }
 
   if (process.env.FY_PLAYERS === "8") await bigGame();
-  else if (process.env.FY_GM) { await gmGame(); await removeXGame(); }
+  else if (process.env.FY_GM) { await gmGame(); await removeXGame(); await mixedGame(); }
   else if (peer) await game("verified", "a", { reloadGuest: true });
   else {
     await game("verified", "a", { reloadGuest: true, reloadHost: true });
@@ -232,6 +260,7 @@ function serve() {
     await game("verified", "h", {});
     await gmGame();
     await removeXGame();
+    await mixedGame();
   }
   await browser.close();
   srv.close();
