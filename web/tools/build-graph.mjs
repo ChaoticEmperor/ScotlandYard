@@ -57,7 +57,7 @@ const toPairs = (set) =>
   [...set].map((s) => s.split("-").map(Number)).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
 
 const out = {
-  name: "Shadow Line station network",
+  name: "Find Mr. X station network",
   source: "Derived from tim-koehler/ScotlandYard (Apache-2.0), GameInitializer/resources/stations.json, with corrections listed in web/NOTES.md",
   stations: 199,
   starts: STARTS,

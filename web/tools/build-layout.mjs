@@ -202,7 +202,7 @@ const width = Math.round(Math.max(...xs) - minX + 2 * PAD);
 const height = Math.round(Math.max(...ys) - minY + 2 * PAD);
 const final = metrics(ids.map((i) => out[i]), E);
 const layout = {
-  name: "Shadow Line original station layout",
+  name: "Find Mr. X original station layout",
   method: "Stress majorization on weighted shortest paths of graph.json, then local search for spacing and fewer crossings",
   width,
   height,

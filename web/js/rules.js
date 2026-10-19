@@ -1,4 +1,4 @@
-/* Shadow Line rules engine: a pure reducer over game events, shared by solo play, the online
+/* Find Mr. X rules engine: a pure reducer over game events, shared by solo play, the online
    referee and every verifying device. apply() throws on any illegal event.
 
    Events

@@ -208,7 +208,7 @@ function serve() {
   async function mixedGame() {
     const h = await open("h"), a = await open("a"), b = await open("b");
     await h.evaluate(() => { const k = "fogyard.h.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "Paul David"; localStorage.setItem(k, JSON.stringify(s)); });
-    await b.evaluate(() => { const k = "fogyard.b.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "David"; localStorage.setItem(k, JSON.stringify(s)); });
+    await b.evaluate(() => { const k = "fogyard.b.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "David"; s.alias = "Holmes"; localStorage.setItem(k, JSON.stringify(s)); });
     await h.reload(); await b.reload();
     await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
     const code = (await h.textContent(".codebig")).trim();
@@ -224,8 +224,15 @@ function serve() {
     if (JSON.stringify(seats) !== JSON.stringify(["host", ids[1], "ai", "ai", "ai"])) errors.push("mixed: seats " + JSON.stringify(seats));
     await a.waitForTimeout(500);
     const labels = await a.evaluate(() => [...document.querySelectorAll("#mapbox .tok .tokt")].map((t) => t.textContent));
-    for (const want of ["PD", "Da", "D3", "D4", "D5"]) if (!labels.includes(want)) errors.push("mixed: map label " + want + " missing in " + JSON.stringify(labels));
+    for (const want of ["PD", "Ho", "D3", "D4", "D5"]) if (!labels.includes(want)) errors.push("mixed: map label " + want + " missing in " + JSON.stringify(labels));
+    // Detectives go by their alias (or name) in text: "Holmes to move", "Holmes (David)" in the log.
+    const names = await a.evaluate(() => [0, 1, 2].map((i) => FY.UI.controller.pieceName(i)).concat(FY.UI.controller.pieceFullName(1)));
+    if (JSON.stringify(names) !== JSON.stringify(["Paul David", "Holmes", "", "Holmes (David)"])) errors.push("mixed: names " + JSON.stringify(names));
     const done = await playUntilOver({ h, a, b }, {});
+    await a.waitForSelector("#overlay:not(.hidden)", { timeout: 8000 }).catch(() => {});
+    await a.evaluate(() => FY.UI.closeLayers()); await a.click("#tLog");
+    const logText = await a.textContent("#vLog");
+    if (!/Holmes \(David\)/.test(logText) || /\bD2\b/.test(logText)) errors.push("mixed: log does not use the alias");
     const r = await h.evaluate(() => ({ over: FY.UI.controller.s.pending, aiMoves: FY.UI.controller.s.history.filter((e) => e.k === "d" && e.i >= 2).length, audit: FY.Net.session.audit && FY.Net.session.audit.ok, problem: FY.Net.session.problem || null }));
     console.log("mixed game (2 players + 3 computer detectives):", done ? "finished" : "DID NOT FINISH", "labels", JSON.stringify(labels), JSON.stringify(r));
     if (r.over !== "over" || !r.aiMoves || r.audit !== true || r.problem) errors.push("mixed: " + JSON.stringify(r));

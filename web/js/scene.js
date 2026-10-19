@@ -1,4 +1,4 @@
-/* Shadow Line: static scene geometry shared by the terrain painter and the SVG map.
+/* Find Mr. X: static scene geometry shared by the terrain painter and the SVG map.
    Everything is deterministic, so every device paints the identical board. */
 (function (FY) {
   "use strict";

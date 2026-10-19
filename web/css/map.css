@@ -1,4 +1,4 @@
-/* Shadow Line: board styles (the map art itself is fixed in both UI themes). */
+/* Find Mr. X: board styles (the map art itself is fixed in both UI themes). */
 .fy-map { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
 .fy-map:active { cursor: grabbing; }
 .fy-map .st { fill: #fffdf6; stroke: rgba(18, 26, 20, .78); stroke-width: 2.2; }
@@ -12,13 +12,22 @@
 .fy-map .hl.maybe { fill: rgba(170, 120, 255, .26); stroke: #b98cff; stroke-width: 2.5; stroke-dasharray: 4 3; }
 .fy-map .hl.danger { fill: rgba(255, 60, 60, .22); stroke: none; }
 .fy-map .route-glow { stroke: #fff; stroke-width: 9; opacity: .55; }
+/* Lines a piece can take this turn: a white casing with the transport colour on top. */
+.fy-map .opt-under { stroke: #fff; stroke-width: 11; opacity: .85; }
+.fy-map .opt-line { stroke-width: 6; stroke-dasharray: 10 6; }
+/* The move just made: a glow along its line that fades away. */
+.fy-map .trail { stroke-width: 10; opacity: .85; animation: fy-trail 3.2s ease-out forwards; }
+@keyframes fy-trail { 70% { opacity: .7; } to { opacity: 0; } }
 .fy-map .tokt { font: 800 11px/1 system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .fy-map .tok.ghost { opacity: .55; }
 @media (prefers-reduced-motion: no-preference) {
   .fy-map .tok { transition: transform .35s ease; }
   .fy-map .hl.move { animation: fy-pulse 1.4s ease-in-out infinite; }
+  .fy-map .opt-line { animation: fy-flow 1s linear infinite; }
 }
 @keyframes fy-pulse { 50% { stroke-opacity: .45; } }
+@keyframes fy-flow { to { stroke-dashoffset: -16; } }
+@media (prefers-reduced-motion: reduce) { .fy-map .trail { animation-duration: .01s; animation-delay: 2.5s; } }
 .fy-map .tokhalo { fill: none; stroke: #fff; stroke-width: 3; stroke-dasharray: 5 4; }
 .fy-map .toktagbg { fill: rgba(20, 24, 32, .82); }
 .fy-map .toktag { font: 700 8.5px/1 system-ui, sans-serif; fill: #fff; text-anchor: middle; dominant-baseline: central; pointer-events: none; }

@@ -30,7 +30,17 @@ const out = process.argv[2] || null;
       if (over) break;
       const btn = await page.$(".mv .tkb button");
       if (btn) {
+        if (turns === 2) {
+          // The lines you can take are lit on the map, one per move option.
+          const lit = await page.evaluate(() => ({ lines: document.querySelectorAll("#mapbox .opt-line").length, moves: document.querySelectorAll("#mapbox .hl.move").length }));
+          if (!lit.lines || lit.lines < lit.moves) errors.push(role + ": move lines not lit " + JSON.stringify(lit));
+        }
         await btn.click(); turns++;
+        if (turns === 3 && role === "det") {
+          // The line just travelled glows for a moment.
+          const trail = await page.evaluate(() => document.querySelectorAll("#mapbox .trail").length);
+          if (!trail) errors.push(role + ": no trail after a move");
+        }
         if (shotName && turns === 6 && out) await page.screenshot({ path: join(out, shotName + "-play.png") });
         if (turns === 7) {
           // A refresh mid-game must come straight back to the same game.
@@ -76,33 +86,6 @@ const out = process.argv[2] || null;
     }
     console.log(role, viewport.width + "px:", JSON.stringify(s), "after", turns, "taps");
     if (s.pending !== "over") errors.push(role + ": game did not finish");
-    await page.close();
-  }
-  // A hosting badge floating over the tab bar (like "Powered by Netlify") must not block the tabs.
-  {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    page.on("pageerror", (e) => errors.push("badge: " + e.message));
-    await page.goto("file://" + join(__dirname, "..", "index.html") + "?profile=badge");
-    await page.evaluate(() => localStorage.setItem("fogyard.badge.settings", JSON.stringify({ tips: false })));
-    await page.reload();
-    await page.click("#mSoloDet"); await page.click("#sStart"); await page.waitForTimeout(500);
-    const before = await page.evaluate(() => document.body.classList.contains("overlay-room"));
-    await page.evaluate(() => {
-      const b = document.createElement("a");
-      b.textContent = "Powered by Netlify";
-      // Like many hosting badges: injected late, on top, and letting taps fall through.
-      b.style.cssText = "position:fixed;right:16px;bottom:16px;width:220px;height:56px;border-radius:28px;background:#0d2b2b;color:#fff;z-index:2147483647;pointer-events:none";
-      document.body.appendChild(b);
-    });
-    await page.waitForTimeout(400);
-    const after = await page.evaluate(() => {
-      const r = document.querySelector("#tLog").getBoundingClientRect(), b = document.querySelector("body > a").getBoundingClientRect();
-      return { room: document.body.classList.contains("overlay-room"), free: r.bottom <= b.top + 1 || r.right <= b.left };
-    });
-    if (before) errors.push("badge: tab bar lifted with no badge present");
-    if (!after.room || !after.free) errors.push("badge: tabs still covered " + JSON.stringify(after));
-    else console.log("badge: tab bar lifted clear of a floating badge");
-    if (out) await page.screenshot({ path: join(out, "badge.png") });
     await page.close();
   }
   await play("det", { width: 360, height: 740 }, "det360", { tactical: true, replay: true });

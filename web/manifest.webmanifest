@@ -1,6 +1,6 @@
 {
-  "name": "Shadow Line",
-  "short_name": "Shadow Line",
+  "name": "Find Mr. X",
+  "short_name": "Find Mr. X",
   "description": "A hide-and-seek detective game across an illustrated London. Play solo or online with friends.",
   "start_url": "./index.html",
   "scope": "./",

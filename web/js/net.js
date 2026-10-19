@@ -1,4 +1,4 @@
-/* Shadow Line online play: peer-to-peer (PeerJS), with the game master's device as the hub.
+/* Find Mr. X online play: peer-to-peer (PeerJS), with the game master's device as the hub.
 
    The game is one shared log of entries {n, ev, by, sig}. The game master's device orders the
    log and relays it; EVERY device re-verifies each entry (author, signature, rules) and replays
@@ -323,10 +323,32 @@
     if (this.sess.routeEntry) return this.sess.routeEntry.route;
     return this.secret ? [this.secret.start].concat(this.secret.route) : null;
   };
+  // Who plays a piece, for the line under its name: "you", "computer", or the player's
+  // real name when the piece goes by their alias. Empty when the name already says it.
   NetController.prototype.detOwnerLabel = function (i) {
-    var id = this.sess.seats.pawns[i];
+    var id = this.sess.seats.pawns[i], p = (this.sess.roster || {})[id];
     if (id === this.sess.myId) return "you";
-    return labelOf(this.sess, id);
+    if (id === "ai") return "computer";
+    return p && p.alias ? p.name : "";
+  };
+  // Detectives go by their player's alias (or name): "Holmes to move". One player with several
+  // pieces, or two players with the same name, get numbers: "Holmes 1", "Holmes 2".
+  // Computer-played pieces keep D1, D2… (empty here, so the UI falls back to that).
+  function numbered(base, i, sep) {
+    if (!base[i]) return "";
+    var same = [];
+    base.forEach(function (b, k) { if (b === base[i]) same.push(k); });
+    return same.length > 1 ? base[i] + sep + (same.indexOf(i) + 1) : base[i];
+  }
+  NetController.prototype.pieceName = function (i) {
+    var ro = this.sess.roster || {};
+    var base = this.sess.seats.pawns.map(function (id) { var p = ro[id]; return id === "ai" || !p ? "" : String(p.alias || p.name).trim(); });
+    return numbered(base, i, " ");
+  };
+  // The name with who plays it, for the travel log and station info: "Holmes (Sam)", "Sam (you)".
+  NetController.prototype.pieceFullName = function (i) {
+    var n = this.pieceName(i) || "D" + (i + 1), o = this.detOwnerLabel(i);
+    return o ? n + " (" + o + ")" : n;
   };
   // Initials for each detective piece: "David" -> "Da", "Paul David" -> "PD" (alias if set).
   // Clashing initials, or one player with several pieces, get a number: "Jo1", "Jo2".
@@ -340,10 +362,7 @@
   NetController.prototype.pieceInitials = function (i) {
     var sess = this.sess, pawns = sess.seats.pawns, ro = sess.roster || {};
     var base = pawns.map(function (id) { var p = ro[id]; return id === "ai" || !p ? "" : initials(p.alias || p.name); });
-    if (!base[i]) return "";
-    var same = [];
-    base.forEach(function (b, k) { if (b === base[i]) same.push(k); });
-    return same.length > 1 ? base[i] + (same.indexOf(i) + 1) : base[i];
+    return numbered(base, i, "");
   };
   NetController.prototype.xShort = function () {
     var p = (this.sess.roster || {})[this.sess.seats.mrx];
@@ -1133,9 +1152,9 @@
     if (a === "rejoin") { var g = S.get("guest", null); return joinGame(g.code, g.name || nameValue()); }
     if (a === "leave") { if (sess) sess.close(); current = null; S.set("resume", null); if (sess && sess.role === "host") S.set("host", null); return openHome(); }
     if (a === "share" && sess) {
-      var txt = "Join my Shadow Line game with code " + sess.code;
+      var txt = "Join my Find Mr. X game with code " + sess.code;
       var url = location.href.split("?")[0].split("#")[0];
-      if (navigator.share) navigator.share({ title: "Shadow Line", text: txt, url: url }).catch(function () {});
+      if (navigator.share) navigator.share({ title: "Find Mr. X", text: txt, url: url }).catch(function () {});
       else if (navigator.clipboard) navigator.clipboard.writeText(txt + " at " + url).then(function () { FY.UI.toast("Invite copied", txt); }, function () {});
       return;
     }

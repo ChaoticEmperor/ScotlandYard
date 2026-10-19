@@ -1,4 +1,4 @@
-/* Shadow Line: localStorage wrapper (every access guarded; private windows may block storage),
+/* Find Mr. X: localStorage wrapper (every access guarded; private windows may block storage),
    settings, one-time tips and saved games. */
 (function (FY) {
   "use strict";
