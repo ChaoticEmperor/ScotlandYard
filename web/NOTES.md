@@ -225,3 +225,10 @@ The board background is a stylized central-London map rendered from OpenStreetMa
 - **Names.** Only the real names drawn into the image are shown: districts, parks and "River Thames". The invented diorama names appear only on the painted fallback.
 - **Fallback.** Without `assets/map.jpg` the procedural diorama painter is used. Its river follows the same Thames line.
 - **Attribution.** "Map data © OpenStreetMap contributors" appears in the image corner, the About dialog and the README.
+
+## Map style: illustrated city (default)
+
+The board image is now an original illustrated city, built by `tools/city/`:
+- **Streets are the routes.** Every taxi link is a street, bus lanes run along the streets, and every block is lined with small oblique-view houses.
+- **Real geography** from OpenStreetMap: the Thames, parks, side streets beyond the network, and landmark positions shown with generic icons.
+- **Other styles.** The plain London render (`tools/london/rasterize.cjs`, written to `assets/map-london.jpg`) and the painted diorama fallback (used when no `map.jpg` exists) remain available.

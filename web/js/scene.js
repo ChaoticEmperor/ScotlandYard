@@ -139,6 +139,66 @@
     return path.reverse();
   }
 
+  // Bus links follow the taxi roads between their stops, each on its own side of the road
+  // (like bus lanes). Long detours or roads with both sides taken fall back to a curve.
+  var LANE = 3.6;
+  function busAlongRoads(board) {
+    var N = board.N, pos = board.pos, taxi = board.adj.taxi;
+    var len = function (a, b) { return Math.hypot(pos[a].x - pos[b].x, pos[a].y - pos[b].y); };
+    var segKey = function (a, b) { return a < b ? a + "-" + b : b + "-" + a; };
+    var used = {}; // segKey -> {"1": true, "-1": true} sides taken (relative to min->max direction)
+    function path(a, b) {
+      var d = new Float64Array(N + 1).fill(Infinity), prev = new Int32Array(N + 1).fill(-1), done = new Uint8Array(N + 1);
+      d[a] = 0;
+      for (;;) {
+        var u = -1;
+        for (var i = 1; i <= N; i++) if (!done[i] && d[i] < Infinity && (u < 0 || d[i] < d[u])) u = i;
+        if (u < 0 || u === b) break;
+        done[u] = 1;
+        taxi[u].forEach(function (v) { var nd = d[u] + len(u, v); if (nd < d[v]) { d[v] = nd; prev[v] = u; } });
+      }
+      if (d[b] === Infinity) return null;
+      var out = [];
+      for (var c = b; c >= 0; c = prev[c]) out.push(c);
+      return { stops: out.reverse(), length: d[b] };
+    }
+    var bus = board.edges.filter(function (e) { return e.t === "bus"; }).map(function (e) {
+      return { e: e, p: path(e.a, e.b), direct: len(e.a, e.b) };
+    });
+    bus.sort(function (x, y) { return (x.p ? x.p.length : 1e9) - (y.p ? y.p.length : 1e9); });
+    return bus.map(function (b) {
+      var ok = b.p && b.p.length <= 1.7 * b.direct + 20 && b.p.stops.length <= 6;
+      var sides = null;
+      if (ok) {
+        // Prefer one side for the whole journey; otherwise any free side per road.
+        var st = b.p.stops, pick = function (pref) {
+          var res = [];
+          for (var k = 0; k < st.length - 1; k++) {
+            var u = st[k], v = st[k + 1], dir = u < v ? 1 : -1, key = segKey(u, v), taken = used[key] || {};
+            var want = pref * dir;
+            if (!taken[want]) res.push(want);
+            else if (pref === 0 && !taken[-want]) res.push(-want);
+            else if (pref === 0) return null;
+            else return null;
+          }
+          return res;
+        };
+        sides = pick(1) || pick(-1) || pick(0);
+      }
+      if (!sides) return routeGeom(board, b.e);
+      var pts = [], st2 = b.p.stops;
+      for (var k = 0; k < st2.length - 1; k++) {
+        var u = st2[k], v = st2[k + 1], key = segKey(u, v);
+        (used[key] = used[key] || {})[sides[k]] = true;
+        var lo = Math.min(u, v), hi = Math.max(u, v), dx = pos[hi].x - pos[lo].x, dy = pos[hi].y - pos[lo].y, l = Math.hypot(dx, dy);
+        var ox = (-dy / l) * LANE * sides[k], oy = (dx / l) * LANE * sides[k];
+        pts.push([pos[u].x + ox, pos[u].y + oy], [pos[v].x + ox, pos[v].y + oy]);
+      }
+      var d = "M" + pts.map(function (q) { return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("L");
+      return { e: b.e, d: d, pts: pts, lanes: true, via: st2 };
+    });
+  }
+
   var NAMES = {
     mountain: ["Greyfell", "Frostspire", "Ravenpeak", "Highmoor Crags", "Whitecap", "Stormridge"],
     lake: ["Mirror Mere", "Stillwater", "Glassmere"],
@@ -147,7 +207,10 @@
 
   function compose(board) {
     var W = board.W, H = board.H, N = board.N, i, j, k;
-    var routes = board.edges.filter(function (e) { return e.t !== "ferry"; }).map(function (e) { return routeGeom(board, e); });
+    var routes = board.edges.filter(function (e) { return e.t !== "ferry"; }).map(function (e) {
+      return e.t === "bus" ? null : routeGeom(board, e);
+    });
+    routes = routes.filter(Boolean).concat(busAlongRoads(board));
 
     // Clearance grids: to stations (all / non-pier) and to drawn routes.
     var piers = {};
@@ -238,6 +301,7 @@
         for (var q = 0; q < river.length - 1; q++) {
           var hit = segHit(r.pts[s], r.pts[s + 1], river[q], river[q + 1]);
           if (!hit || gSt.at(hit[0], hit[1]) < 18) continue;
+          if (r.e.t === "bus" && r.lanes) continue; // bus lanes ride on the taxi road's bridge
           bridges.push({
             x: hit[0], y: hit[1], type: r.e.t, w: riverW(q / (river.length - 1)),
             angle: Math.atan2(r.pts[s + 1][1] - r.pts[s][1], r.pts[s + 1][0] - r.pts[s][0])

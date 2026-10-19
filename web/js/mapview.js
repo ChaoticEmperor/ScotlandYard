@@ -3,9 +3,10 @@
   "use strict";
 
   var NS = "http://www.w3.org/2000/svg";
-  var COL = { taxi: "#f6c431", bus: "#3ccf7f", underground: "#ee4a3d", ferry: "#7cc8ff" };
+  var COL = { taxi: "#f2c12e", bus: "#16a085", underground: "#e2382c", ferry: "#7cc8ff" };
   var CASE = "rgba(18,26,20,.72)";
-  var WIDTH = { taxi: 3.4, bus: 3.6, underground: 3.8, ferry: 3.4 };
+  var WIDTH = { taxi: 3.4, bus: 3, underground: 3.6, ferry: 3.4 };
+  var ROAD = { w: 11, fill: "#fbf6e6", edge: "rgba(110,80,25,.55)" };
   var MAX_SCALE = 2.6;
 
   function el(tag, attrs, parent) {
@@ -44,14 +45,20 @@
     s.bridges.forEach(function (br) {
       var L = br.w + 18, deg = (br.angle * 180) / Math.PI, tf = "translate(" + br.x.toFixed(1) + " " + br.y.toFixed(1) + ") rotate(" + deg.toFixed(1) + ")";
       var d = el("g", { transform: tf }, g);
-      el("rect", { x: -L / 2 + 2, y: -6, width: L, height: 16, fill: "rgba(10,30,40,.3)" }, d);
-      el("rect", { x: -L / 2, y: -8, width: L, height: 16, rx: 2, fill: "#d3c2a0", stroke: "#7d6545", "stroke-width": 1.6 }, d);
+      el("rect", { x: -L / 2 + 2, y: -6.5, width: L, height: 17, fill: "rgba(10,30,40,.3)" }, d);
+      el("rect", { x: -L / 2, y: -8.5, width: L, height: 17, rx: 2, fill: "#cfc6b4", stroke: "#6f6a5e", "stroke-width": 1.4 }, d);
+      for (var px = -L / 2 + 4; px < L / 2 - 2; px += 6) el("rect", { x: px, y: -9.4, width: 2.2, height: 2.4, fill: "#6f6a5e" }, d), el("rect", { x: px, y: 7, width: 2.2, height: 2.4, fill: "#6f6a5e" }, d);
     });
+    // Taxi links are the streets: a cream road with yellow kerbs. Bus lanes run along them,
+    // underground and ferry lines sit on top with dark casings.
     g = el("g", { "class": "routes", fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" }, svg);
-    layers.forEach(function (t) {
-      byType[t].forEach(function (r) { el("path", { d: r.d, stroke: CASE, "stroke-width": WIDTH[t] + 3.4 }, g); });
+    byType.taxi.forEach(function (r) { el("path", { d: r.d, stroke: ROAD.edge, "stroke-width": ROAD.w + 2.2 }, g); });
+    byType.taxi.forEach(function (r) { el("path", { d: r.d, stroke: COL.taxi, "stroke-width": ROAD.w }, g); });
+    byType.taxi.forEach(function (r) { el("path", { d: r.d, stroke: ROAD.fill, "stroke-width": ROAD.w - 4.4 }, g); });
+    ["ferry", "bus", "underground"].forEach(function (t) {
+      byType[t].forEach(function (r) { el("path", { d: r.d, stroke: CASE, "stroke-width": WIDTH[t] + (r.lanes ? 1.6 : 3.4) }, g); });
     });
-    layers.forEach(function (t) {
+    ["ferry", "bus", "underground"].forEach(function (t) {
       byType[t].forEach(function (r) {
         var a = { d: r.d, stroke: COL[t], "stroke-width": WIDTH[t] };
         if (t === "underground") a["stroke-dasharray"] = "9 5";
