@@ -1,4 +1,4 @@
-/* Fog Yard user interface: menus, solo setup, the Play / Map / Log views, move cards with
+/* Shadow Line user interface: menus, solo setup, the Play / Map / Log views, move cards with
    learning and tactical cues, the travel log, tips, the end screen, replay and dialogs.
    Online play (net.js) reuses the same game screen through FY.UI.enterGame(controller). */
 (function (FY) {
@@ -684,7 +684,7 @@
     "double-use": ["Double move", "Pick your second station next. Both moves use a ticket and fill two places in your travel log."],
     "handover": ["Tickets change hands", "Every ticket a detective spends goes to Mr. X, so he never runs out."],
     "stuck": ["Stuck detective", "A detective with no ticket for any route from its station misses its turn. If no detective can move, Mr. X wins."],
-    "offline-ready": ["Works offline", "Fog Yard is saved on this device: solo games now load without internet. Online games still need a connection. Tip: add it to your home screen."],
+    "offline-ready": ["Works offline", "Shadow Line is saved on this device: solo games now load without internet. Online games still need a connection. Tip: add it to your home screen."],
     "select": ["Detective selected", "Its moves glow on the map and are listed on the Play tab. Tap another of your detectives to switch."],
     "unavailable": ["Not reachable", "Each ticket follows its own lines: taxi (yellow streets), bus (teal lanes) and underground (red dashes)."]
   };
@@ -721,10 +721,10 @@
       '<button class="btn pri" data-act="close">Got it</button>');
   }
   function showAbout() {
-    overlay('<h2 class="disp">About Fog Yard</h2>' +
-      "<p>Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Fog Yard is an unofficial fan project and is not affiliated with Ravensburger.</p>" +
+    overlay('<h2 class="disp">About Shadow Line</h2>' +
+      "<p>Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Shadow Line is an unofficial fan project and is not affiliated with Ravensburger.</p>" +
       "<p>Map data © OpenStreetMap contributors, available under the Open Database License. The illustrated board, station layout and landmark icons are original.</p>" +
-      '<p class="note">' + (navigator.serviceWorker && navigator.serviceWorker.controller ? "Saved for offline play on this device." : "Open once with internet to save Fog Yard for offline play.") + "</p>" +
+      '<p class="note">' + (navigator.serviceWorker && navigator.serviceWorker.controller ? "Saved for offline play on this device." : "Open once with internet to save Shadow Line for offline play.") + "</p>" +
       '<p class="note">Online play connects players directly using PeerJS. No game data is stored on a server.</p>' +
       '<button class="btn pri" data-act="close">Close</button>');
   }
@@ -848,7 +848,7 @@
         w.addEventListener("statechange", function () {
           if (w.state !== "activated") return;
           if (!hadController) tip("offline-ready");
-          else toast("Fog Yard was updated", "Reload the page when it suits you to use the new version.");
+          else toast("Shadow Line was updated", "Reload the page when it suits you to use the new version.");
         });
       });
     }).catch(function () {});

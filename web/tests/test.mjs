@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fog Yard tests: no dependencies. Run with `node web/tests/test.mjs [games]`.
+// Shadow Line tests: no dependencies. Run with `node web/tests/test.mjs [games]`.
 // Checks the station graph, every ticket-type move generator, rule enforcement, and plays
 // many AI-vs-AI games, checking invariants and that each game replays from its event log.
 import { readFileSync } from "node:fs";

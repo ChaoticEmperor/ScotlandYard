@@ -1,4 +1,4 @@
-/* Fog Yard: board background. Uses assets/map.jpg when present, otherwise paints a
+/* Shadow Line: board background. Uses assets/map.jpg when present, otherwise paints a
    procedural diorama (rolling hills, forests, snowy peaks, lakes and a river; bridges are drawn by the map view). */
 (function (FY) {
   "use strict";

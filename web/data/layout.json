@@ -1,5 +1,5 @@
 {
- "name": "Fog Yard original station layout",
+ "name": "Shadow Line original station layout",
  "method": "Stress majorization on weighted shortest paths of graph.json, then local search for spacing and fewer crossings; fitted onto central London so ferry stations sit on the Thames (tools/london/fit-layout.mjs)",
  "width": 1182,
  "height": 1034,

@@ -1,4 +1,4 @@
-/* Fog Yard: SVG board with pinch zoom, drag pan, wheel zoom and nearest-station tapping. */
+/* Shadow Line: SVG board with pinch zoom, drag pan, wheel zoom and nearest-station tapping. */
 (function (FY) {
   "use strict";
 
@@ -19,7 +19,7 @@
   function MapView(container, board, scene, opts) {
     this.c = container; this.b = board; this.s = scene; this.opts = opts || {};
     this.onTap = this.opts.onTap || function () {};
-    this.svg = el("svg", { "class": "fy-map", role: "img", "aria-label": "Fog Yard board" }, container);
+    this.svg = el("svg", { "class": "fy-map", role: "img", "aria-label": "Shadow Line board" }, container);
     this.build();
     this.VB = { x: 0, y: 0, w: board.W, h: board.H };
     this.fit();

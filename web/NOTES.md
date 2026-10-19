@@ -1,4 +1,6 @@
-# Fog Yard: repo investigation notes
+# Shadow Line: repo investigation notes
+
+> The game was first called "Fog Yard". It was renamed **Shadow Line**: the taxi, bus and underground lines, and a fugitive moving unseen along them. Internal identifiers (`FY` namespace, `fogyard.` storage keys, `fogyard-` peer ids) keep the old name so saved games and online codes keep working across versions.
 
 Source: `tim-koehler/ScotlandYard` (Scala, Apache-2.0). This fork keeps the LICENSE.
 Only the abstract station graph and rule constants are used. No artwork, coordinates, logos or branding are taken.
@@ -74,9 +76,9 @@ Sources:
 - [Transcribed classic English rules](https://gist.github.com/49ca696612413e06e45da914e6e07bc3)
 - [Wikipedia](https://en.wikipedia.org/wiki/Scotland_Yard_(board_game))
 
-Editions disagree on some numbers. Fog Yard follows the brief wherever it sets a value, and the official rules otherwise. Every value sits in one `CONFIG` object.
+Editions disagree on some numbers. Shadow Line follows the brief wherever it sets a value, and the official rules otherwise. Every value sits in one `CONFIG` object.
 
-| Rule | Official rules | Repo | Fog Yard default |
+| Rule | Official rules | Repo | Shadow Line default |
 |---|---|---|---|
 | Length | The travel log has 24 moves. Classic rules say Mr. X wins after the 24th move. The Ravensburger text says "22 rounds" but still lists a reveal at move 24, which looks like an inconsistency. | 24 | **24 rounds** |
 | Reveals | After moves 3, 8, 13, 18 and 24. Mr. X's marker stays until his next move. His start is never logged. | same | **3, 8, 13, 18, 24** |
@@ -86,7 +88,7 @@ Editions disagree on some numbers. Fog Yard follows the brief wherever it sets a
 | Double moves | 2, discarded after use, at most one per turn. If the first half lands on a reveal round, Mr. X shows himself there and then makes the second move. He cannot end either half on a detective. | none | **2, one per turn, reveal on the matching half** |
 | Ferry | Mr. X only, black ticket only | none | **same** |
 | Black ticket | Replaces any ticket and hides the transport used | any edge | **same, plus ferry** |
-| Occupancy | Pieces may not end on an occupied station. On a bus or underground route a piece may pass over occupied stations; Fog Yard edges are direct, so this is automatic. | detectives only | **No two detectives share a station. Mr. X cannot move onto a detective.** |
+| Occupancy | Pieces may not end on an occupied station. On a bus or underground route a piece may pass over occupied stations; Shadow Line edges are direct, so this is automatic. | detectives only | **No two detectives share a station. Mr. X cannot move onto a detective.** |
 | Every piece must move | yes | yes | **yes** |
 | Stuck detective | Stays put, still blocks its station, and is skipped | ticket check only | **Skipped if it has no legal move (tickets or blocked)** |
 | Detectives win | A detective ends a move on Mr. X, or Mr. X has no legal move | landing only | **landing or trapping** |

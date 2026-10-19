@@ -1,4 +1,4 @@
-/* Fog Yard: localStorage wrapper (every access guarded; private windows may block storage),
+/* Shadow Line: localStorage wrapper (every access guarded; private windows may block storage),
    settings, one-time tips and saved games. */
 (function (FY) {
   "use strict";

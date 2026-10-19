@@ -1,4 +1,4 @@
-/* Fog Yard: board model built from window.FY_DATA (graph.json + layout.json). */
+/* Shadow Line: board model built from window.FY_DATA (graph.json + layout.json). */
 (function (FY) {
   "use strict";
 

@@ -1,4 +1,4 @@
-/* Fog Yard online play: peer-to-peer (PeerJS), with the game master's device as the hub.
+/* Shadow Line online play: peer-to-peer (PeerJS), with the game master's device as the hub.
 
    The game is one shared log of entries {n, ev, by, sig}. The game master's device orders the
    log and relays it; EVERY device re-verifies each entry (author, signature, rules) and replays
@@ -1104,9 +1104,9 @@
     if (a === "rejoin") { var g = S.get("guest", null); return joinGame(g.code, g.name || nameValue()); }
     if (a === "leave") { if (sess) sess.close(); current = null; S.set("resume", null); if (sess && sess.role === "host") S.set("host", null); return openHome(); }
     if (a === "share" && sess) {
-      var txt = "Join my Fog Yard game with code " + sess.code;
+      var txt = "Join my Shadow Line game with code " + sess.code;
       var url = location.href.split("?")[0].split("#")[0];
-      if (navigator.share) navigator.share({ title: "Fog Yard", text: txt, url: url }).catch(function () {});
+      if (navigator.share) navigator.share({ title: "Shadow Line", text: txt, url: url }).catch(function () {});
       else if (navigator.clipboard) navigator.clipboard.writeText(txt + " at " + url).then(function () { FY.UI.toast("Invite copied", txt); }, function () {});
       return;
     }

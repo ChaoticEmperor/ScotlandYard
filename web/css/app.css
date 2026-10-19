@@ -1,4 +1,4 @@
-/* Fog Yard UI. Mobile first; wide screens show the map beside the Play/Log panel. */
+/* Shadow Line UI. Mobile first; wide screens show the map beside the Play/Log panel. */
 :root {
   --bg: #ece6d6; --panel: #f8f4ea; --panel2: #efe8d8; --ink: #1b2231; --muted: #626877; --line: #d3c9b0;
   --brass: #9a6d12; --brass-ink: #fff; --good: #1f7a45; --bad: #b42318;

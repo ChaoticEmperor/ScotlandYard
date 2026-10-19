@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Project the central-London extract into Fog Yard board pixels for render.html.
+"""Project the central-London extract into Shadow Line board pixels for render.html.
 
 Map data (c) OpenStreetMap contributors, ODbL. The output is a working file, not shipped.
 Usage: python3 project_osm.py central.json ../../data/layout.json projected.json [scale]

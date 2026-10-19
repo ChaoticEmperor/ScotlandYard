@@ -1,4 +1,4 @@
-/* Fog Yard computer players.
+/* Shadow Line computer players.
    Mr. X: prefers stations far from every detective, with many exits detectives can't cover next
    turn, while keeping the detectives' list of possible stations large and saving scarce tickets.
    Detectives: track the possible Mr. X stations (state.P) and spread out to cover them,

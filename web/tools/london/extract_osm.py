@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract a central-London feature set from an OpenStreetMap .pbf for the Fog Yard map.
+"""Extract a central-London feature set from an OpenStreetMap .pbf for the Shadow Line map.
 
 Map data (c) OpenStreetMap contributors, ODbL. The output is a working file for
 render_map.py and build-layout.mjs; it is not shipped with the site.
