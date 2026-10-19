@@ -105,6 +105,8 @@ h2.disp { margin: 0; font-size: 30px; }
 #tabs button { flex: 1; min-height: 54px; border: none; background: none; font-weight: 700; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: var(--muted); }
 #tabs button .ti { font-size: 16px; }
 #tabs button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--brass); }
+body.overlay-room #tabs { padding-bottom: calc(var(--safe-b) + 66px); }
+body.overlay-room #toast { bottom: calc(128px + var(--safe-b)); }
 #tabs button .badge { display: inline-block; min-width: 8px; height: 8px; border-radius: 4px; background: var(--bad); margin-left: 4px; vertical-align: top; }
 
 .zoom { position: absolute; right: calc(8px + var(--safe-r)); top: 8px; display: flex; flex-direction: column; gap: 6px; }
