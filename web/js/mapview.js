@@ -39,6 +39,14 @@
     layers.forEach(function (t) { byType[t] = []; });
     s.routes.forEach(function (r) { byType[r.e.t].push(r); });
     s.ferries.forEach(function (r) { byType.ferry.push(r); });
+    // Bridge decks where roads cross the river, under the routes so the road runs across them.
+    g = el("g", { "class": "bridges" }, svg);
+    s.bridges.forEach(function (br) {
+      var L = br.w + 18, deg = (br.angle * 180) / Math.PI, tf = "translate(" + br.x.toFixed(1) + " " + br.y.toFixed(1) + ") rotate(" + deg.toFixed(1) + ")";
+      var d = el("g", { transform: tf }, g);
+      el("rect", { x: -L / 2 + 2, y: -6, width: L, height: 16, fill: "rgba(10,30,40,.3)" }, d);
+      el("rect", { x: -L / 2, y: -8, width: L, height: 16, rx: 2, fill: "#d3c2a0", stroke: "#7d6545", "stroke-width": 1.6 }, d);
+    });
     g = el("g", { "class": "routes", fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" }, svg);
     layers.forEach(function (t) {
       byType[t].forEach(function (r) { el("path", { d: r.d, stroke: CASE, "stroke-width": WIDTH[t] + 3.4 }, g); });
@@ -53,8 +61,8 @@
     });
     this.routeHi = el("g", { "class": "route-hi", fill: "none", "stroke-linecap": "round" }, svg);
 
-    // Feature labels.
-    g = el("g", { "class": "labels" }, svg);
+    // Feature labels for the painted terrain; hidden when a map image (with its own names) is used.
+    g = this.labels = el("g", { "class": "labels", visibility: "hidden" }, svg);
     var F = s.features;
     F.mountains.forEach(function (d) { if (d.name) label(g, d.x, d.y + d.r * 0.62 + 14, d.name, "lbl lbl-mtn"); });
     F.lakes.forEach(function (d) { if (d.name) label(g, d.x, d.y + 4, d.name, "lbl lbl-lake"); });
@@ -88,7 +96,10 @@
     }
   };
 
-  MapView.prototype.setBackground = function (url) { this.bg.setAttribute("href", url); };
+  MapView.prototype.setBackground = function (url, painted) {
+    this.bg.setAttribute("href", url);
+    this.labels.setAttribute("visibility", painted ? "visible" : "hidden");
+  };
 
   // ---- view box ----
   MapView.prototype.size = function () {

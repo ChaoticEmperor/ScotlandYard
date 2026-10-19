@@ -160,47 +160,71 @@
     }
     routes.forEach(function (r) { gRt.stampLine(r.pts, 140); });
 
-    // River: least-cost path through the ferry piers, steering around other stations.
-    var nz = makeNoise(77), gw = gSt.w, gh = gSt.h, cost = new Float32Array(gw * gh);
-    for (j = 0; j < gh; j++)
-      for (i = 0; i < gw; i++) {
-        k = j * gw + i;
-        var ds = gStNP.v[k], dr = gRt.v[k];
-        cost[k] = 1 + 60 * Math.pow(Math.max(0, 1 - ds / 40), 2) + (dr < 9 ? 1.5 : 0) + 2.2 * fbm(nz, i * 0.12, j * 0.12, 2);
+    var chain = ferryChain(board), river, riverW, sections, gw = gSt.w, gh = gSt.h;
+    if (board.river) {
+      // Real river (London map): the fitted Thames centreline; ferries run along it between piers.
+      river = chaikin(board.river.line, 2);
+      var rw = board.river.width;
+      riverW = function () { return rw; };
+      var nearestIdx = function (p) {
+        var bi = 0, bd = Infinity;
+        river.forEach(function (q, n) { var d = Math.hypot(q[0] - p.x, q[1] - p.y); if (d < bd) { bd = d; bi = n; } });
+        return bi;
+      };
+      sections = [null];
+      for (k = 0; k < chain.length - 1; k++) {
+        var pa = board.pos[chain[k]], pb = board.pos[chain[k + 1]], ia = nearestIdx(pa), ib = nearestIdx(pb);
+        var seg = ia <= ib ? river.slice(ia, ib + 1) : river.slice(ib, ia + 1).reverse();
+        sections.push([[pa.x, pa.y]].concat(seg, [[pb.x, pb.y]]));
       }
-    var chain = ferryChain(board);
-    var cellOf = function (x, y) { return [Math.max(0, Math.min(gw - 1, Math.round(x / CELL))), Math.max(0, Math.min(gh - 1, Math.round(y / CELL)))]; };
-    var edgePoint = function (from, toward) {
-      var dx = from.x - toward.x, dy = from.y - toward.y, l = Math.hypot(dx, dy), t = Infinity;
-      dx /= l; dy /= l;
-      if (dx > 0) t = Math.min(t, (W - from.x) / dx); if (dx < 0) t = Math.min(t, -from.x / dx);
-      if (dy > 0) t = Math.min(t, (H - from.y) / dy); if (dy < 0) t = Math.min(t, -from.y / dy);
-      return { x: from.x + dx * t, y: from.y + dy * t };
-    };
-    var first = board.pos[chain[0]], last = board.pos[chain[chain.length - 1]];
-    var anchors = [edgePoint(first, board.pos[chain[1]])].concat(chain.map(function (s) { return board.pos[s]; }), [edgePoint(last, board.pos[chain[chain.length - 2]])]);
-    var sections = [];
-    for (k = 0; k < anchors.length - 1; k++) {
-      var a = anchors[k], b = anchors[k + 1];
-      var cells = gridPath(cost, gw, gh, cellOf(a.x, a.y), cellOf(b.x, b.y));
-      var pts = [[a.x, a.y]];
-      for (i = 2; i < cells.length - 2; i += 3) pts.push(cells[i]);
-      pts.push([b.x, b.y]);
-      sections.push(chaikin(pts, 3));
+    } else {
+      var made = proceduralRiver();
+      river = made.river; riverW = made.riverW; sections = made.sections;
     }
-    var river = [];
-    sections.forEach(function (s, idx) { river = river.concat(idx ? s.slice(1) : s); });
-    // Make the off-board ends run past the edge so the river doesn't stop at the frame.
-    var ext = function (p, q) { return [p[0] + (p[0] - q[0]) * 6, p[1] + (p[1] - q[1]) * 6]; };
-    river.unshift(ext(river[0], river[1]));
-    river.push(ext(river[river.length - 1], river[river.length - 2]));
-    var riverW = function (t) { return 13 + 13 * t; }; // narrow at the source, wide at the mouth
 
     // Ferry routes follow the river between consecutive piers.
     var ferries = [];
     for (k = 0; k < chain.length - 1; k++) {
       var sec = sections[k + 1];
       ferries.push({ e: { a: chain[k], b: chain[k + 1], t: "ferry" }, pts: sec, d: "M" + sec.map(function (q) { return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("L") });
+    }
+
+    // Fallback river: least-cost path through the ferry piers, steering around other stations.
+    function proceduralRiver() {
+      var nz = makeNoise(77), cost = new Float32Array(gw * gh);
+      for (j = 0; j < gh; j++)
+        for (i = 0; i < gw; i++) {
+          k = j * gw + i;
+          var ds = gStNP.v[k], dr = gRt.v[k];
+          cost[k] = 1 + 60 * Math.pow(Math.max(0, 1 - ds / 40), 2) + (dr < 9 ? 1.5 : 0) + 2.2 * fbm(nz, i * 0.12, j * 0.12, 2);
+        }
+      var cellOf = function (x, y) { return [Math.max(0, Math.min(gw - 1, Math.round(x / CELL))), Math.max(0, Math.min(gh - 1, Math.round(y / CELL)))]; };
+      var edgePoint = function (from, toward) {
+        var dx = from.x - toward.x, dy = from.y - toward.y, l = Math.hypot(dx, dy), t = Infinity;
+        dx /= l; dy /= l;
+        if (dx > 0) t = Math.min(t, (W - from.x) / dx); if (dx < 0) t = Math.min(t, -from.x / dx);
+        if (dy > 0) t = Math.min(t, (H - from.y) / dy); if (dy < 0) t = Math.min(t, -from.y / dy);
+        return { x: from.x + dx * t, y: from.y + dy * t };
+      };
+      var first = board.pos[chain[0]], last = board.pos[chain[chain.length - 1]];
+      var anchors = [edgePoint(first, board.pos[chain[1]])].concat(chain.map(function (s) { return board.pos[s]; }), [edgePoint(last, board.pos[chain[chain.length - 2]])]);
+      var sections = [], i, k;
+      for (k = 0; k < anchors.length - 1; k++) {
+        var a = anchors[k], b = anchors[k + 1];
+        var cells = gridPath(cost, gw, gh, cellOf(a.x, a.y), cellOf(b.x, b.y));
+        var pts = [[a.x, a.y]];
+        for (i = 2; i < cells.length - 2; i += 3) pts.push(cells[i]);
+        pts.push([b.x, b.y]);
+        sections.push(chaikin(pts, 3));
+      }
+      var river = [];
+      sections.forEach(function (s, idx) { river = river.concat(idx ? s.slice(1) : s); });
+      // Make the off-board ends run past the edge so the river doesn't stop at the frame.
+      var ext = function (p, q) { return [p[0] + (p[0] - q[0]) * 6, p[1] + (p[1] - q[1]) * 6]; };
+      river.unshift(ext(river[0], river[1]));
+      river.push(ext(river[river.length - 1], river[river.length - 2]));
+      var riverW = function (t) { return 13 + 13 * t; }; // narrow at the source, wide at the mouth
+      return { river: river, riverW: riverW, sections: sections };
     }
 
     var gRv = new Grid(W, H);

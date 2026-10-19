@@ -215,3 +215,13 @@ The game master's device runs the turns, which by itself would let the game mast
 What Verified cannot prevent:
 - The game master can still stall the game by not relaying messages. Everyone sees the stall.
 - A lie from Mr. X is proven only at game end, which is inherent without a trusted third party. It still cannot go unnoticed.
+
+## Map style: real London (OpenStreetMap)
+
+The board background is a stylized central-London map rendered from OpenStreetMap data into `assets/map.jpg`. The pipeline is in `tools/london/README.md`.
+- **Fit.** The original station layout is fitted so the four ferry stations sit on the real Thames banks, between Battersea/Nine Elms and London Bridge/The Borough. North is up.
+- **Result.** At about 8.5 m per pixel the board spans roughly 10 km, from Kilburn and Gospel Oak in the north to Oval in the south and from Earl's Court to Whitechapel. No non-ferry station touches the water.
+- **Route clarity.** The real streets do not match the game's routes, so the map is drawn muted: pale roads, buff buildings and soft parks. The game's routes carry dark casings so they stay readable.
+- **Names.** Only the real names drawn into the image are shown: districts, parks and "River Thames". The invented diorama names appear only on the painted fallback.
+- **Fallback.** Without `assets/map.jpg` the procedural diorama painter is used. Its river follows the same Thames line.
+- **Attribution.** "Map data © OpenStreetMap contributors" appears in the image corner, the About dialog and the README.

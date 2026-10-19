@@ -1,5 +1,5 @@
 /* Fog Yard: board background. Uses assets/map.jpg when present, otherwise paints a
-   procedural diorama (rolling hills, forests, snowy peaks, lakes, a river with bridges). */
+   procedural diorama (rolling hills, forests, snowy peaks, lakes and a river; bridges are drawn by the map view). */
 (function (FY) {
   "use strict";
 
@@ -167,18 +167,6 @@
     strokeRiver(0, "#3f9bd2", 1, 1);
     strokeRiver(0, "#73bfe6", 0.8, 0.6);
     strokeRiver(0, "#bfe6f7", 0.55, 0.18);
-
-    // 4) Bridges, drawn under the SVG routes so the road appears to run across the deck.
-    scene.bridges.forEach(function (b) {
-      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
-      var L = b.w + 18, Wd = 16;
-      ctx.fillStyle = "rgba(10,30,40,.35)"; ctx.fillRect(-L / 2 + 2, -Wd / 2 + 3, L, Wd);
-      ctx.fillStyle = "#cbb68e"; ctx.fillRect(-L / 2, -Wd / 2, L, Wd);
-      ctx.fillStyle = "#8a6f48"; ctx.fillRect(-L / 2, -Wd / 2, L, 2.4); ctx.fillRect(-L / 2, Wd / 2 - 2.4, L, 2.4);
-      ctx.fillStyle = "#6e5636";
-      for (var px = -L / 2; px <= L / 2; px += L / 4) { ctx.fillRect(px - 1.4, -Wd / 2 - 1.5, 2.8, 3.4); ctx.fillRect(px - 1.4, Wd / 2 - 1.9, 2.8, 3.4); }
-      ctx.restore();
-    });
 
     // 5) Snowy mountain ranges.
     F.mountains.forEach(function (d) { drawRange(ctx, d, U.mulberry(Math.round(d.x * 3 + d.y * 5))); });
