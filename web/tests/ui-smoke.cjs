@@ -46,6 +46,7 @@ const out = process.argv[2] || null;
       await page.screenshot({ path: join(out, shotName + "-map.png") });
     }
     if (extra.replay) {
+      await page.waitForSelector("#overlay:not(.hidden)", { timeout: 5000 }).catch(() => {});
       await page.evaluate(() => FY.UI.closeLayers());
       await page.click("#tPlay");
       await page.click("#vPlay [data-act=replay]");

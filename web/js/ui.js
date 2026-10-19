@@ -152,7 +152,7 @@
     }
     if (ev && ev.t === "d" && s.history.length) tip("handover");
     if (s.history.some(function (h) { return h.k === "skip"; })) tip("stuck");
-    if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(showEnd, 500); return; }
+    if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(function () { if (!ui.replay) showEnd(); }, 500); return; }
     render();
   }
 
