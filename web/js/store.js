@@ -27,7 +27,8 @@
     level: "normal",
     detectives: FY.CONFIG.rules.detectivePawns,
     vibrate: true,
-    name: ""
+    name: "",
+    alias: ""
   };
   function settings() {
     var s = get("settings", {}), out = {};
@@ -52,8 +53,13 @@
     return id;
   }
 
+  // Whether this browser actually keeps what we save (private windows may not).
+  function works() {
+    try { localStorage.setItem(P + "probe", "1"); var ok = localStorage.getItem(P + "probe") === "1"; localStorage.removeItem(P + "probe"); return ok; } catch (e) { return false; }
+  }
+
   FY.Store = {
-    get: get, set: set, settings: settings, saveSetting: saveSetting,
+    get: get, set: set, works: works, settings: settings, saveSetting: saveSetting,
     tipSeen: tipSeen, markTip: markTip, resetTips: resetTips, deviceId: deviceId
   };
 })(window.FY = window.FY || {});

@@ -29,7 +29,18 @@ const out = process.argv[2] || null;
       const over = await page.evaluate(() => FY.UI.controller && FY.UI.controller.s.pending === "over");
       if (over) break;
       const btn = await page.$(".mv .tkb button");
-      if (btn) { await btn.click(); turns++; if (shotName && turns === 6 && out) await page.screenshot({ path: join(out, shotName + "-play.png") }); }
+      if (btn) {
+        await btn.click(); turns++;
+        if (shotName && turns === 6 && out) await page.screenshot({ path: join(out, shotName + "-play.png") });
+        if (turns === 7) {
+          // A refresh mid-game must come straight back to the same game.
+          const before = await page.evaluate(() => FY.UI.controller.s.events.length);
+          await page.reload();
+          await page.waitForSelector("#game:not(.hidden)", { timeout: 10000 }).catch(() => errors.push(role + ": refresh did not return to the game"));
+          const after = await page.evaluate(() => FY.UI.controller && FY.UI.controller.s.events.length);
+          if (after < before) errors.push(role + ": refresh lost moves (" + before + " -> " + after + ")");
+        }
+      }
       else await page.waitForTimeout(200);
     }
     const s = await page.evaluate(() => { const c = FY.UI.controller; return { pending: c.s.pending, winner: c.s.winner, reason: c.s.reason, moves: c.s.log.length }; });

@@ -19,9 +19,9 @@
 <section id="menu" class="screen">
   <div class="menu-inner">
     <h1 class="disp brand">Fog<br>Yard</h1>
-    <p class="tag">One fugitive. Up to five detectives. Twenty-four moves across London, and he only shows his face five times.</p>
+    <p class="tag">One fugitive. Up to seven detectives. Twenty-four moves across London, and he only shows his face five times.</p>
     <button class="role hidden" id="mContinue"><b>Continue your game</b><span id="mContinueInfo"></span></button>
-    <button class="role" id="mOnline"><b>Play online with friends</b><span>2 to 6 players. A game master hosts and hands out the roles.</span></button>
+    <button class="role" id="mOnline"><b>Play online with friends</b><span>2 to 8 players. A game master hosts and hands out the roles.</span></button>
     <button class="role" id="mSoloDet"><b>Solo: play the detectives</b><span>The computer plays Mr. X.</span></button>
     <button class="role" id="mSoloX"><b>Solo: play Mr. X</b><span>The computer plays the detectives.</span></button>
     <div class="menu-links">
@@ -36,6 +36,10 @@
   <div class="menu-inner">
     <button class="linkbtn back" id="sBack">&larr; Back</button>
     <h2 class="disp" id="sTitle">Solo game</h2>
+    <label class="field"><span>Your name <small class="note">(optional)</small></span>
+      <input class="txt" id="sName" maxlength="16" autocomplete="nickname" placeholder="e.g. Flora"></label>
+    <label class="field" id="sAliasRow"><span>Mr. X's alias <small class="note">(optional, shown instead of "Mr. X")</small></span>
+      <input class="txt" id="sAlias" maxlength="20" placeholder="e.g. Moriarty"></label>
     <label class="field"><span>Detectives on the board</span>
       <div class="seg" id="sDets" role="radiogroup" aria-label="Detectives on the board"></div>
     </label>

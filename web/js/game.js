@@ -132,6 +132,14 @@
     this.kick();
   };
 
+  // Display names: "Mr. X" or the player's alias, with the player's name in brackets.
+  Controller.prototype.xShort = function () { return (this.opts.role === "x" && this.opts.alias) || "Mr. X"; };
+  Controller.prototype.xLabel = function () {
+    return this.xShort() + (this.opts.role === "x" ? (this.opts.name ? " (" + this.opts.name + ")" : "") : " (computer)");
+  };
+  Controller.prototype.detOwnerLabel = function () { return this.opts.role === "det" ? "" : "computer"; };
+  Controller.prototype.myName = function () { return this.opts.name || ""; };
+
   // Mr. X's route, known to this device (always at the end of a solo game).
   Controller.prototype.route = function () {
     return this.secret ? [this.secret.start].concat(this.secret.route) : null;

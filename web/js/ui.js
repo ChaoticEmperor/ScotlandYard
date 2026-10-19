@@ -9,7 +9,7 @@
     taxi: { n: "Taxi", s: "T" }, bus: { n: "Bus", s: "B" }, underground: { n: "Underground", s: "U" },
     black: { n: "Black", s: "?" }, double: { n: "Double", s: "2×" }, ferry: { n: "Ferry", s: "F" }
   };
-  var DCOL = ["#2563eb", "#db2777", "#7c3aed", "#ea580c", "#0e7490"];
+  var DCOL = ["#2563eb", "#db2777", "#7c3aed", "#ea580c", "#0e7490", "#a16207", "#475569"];
   var KIND = { taxi: "Taxi stop", bus: "Bus stop", underground: "Underground" };
 
   var board, scene, bg = null, mv = null, mini = null, ctl = null;
@@ -19,6 +19,11 @@
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function tkDot(tk, label) { return '<span class="tkd bg-' + tk + '">' + (label || TK[tk].s) + "</span>"; }
   function detName(i) { return "D" + (i + 1); }
+  // Role names with player names and aliases: XN() for sentences ("Moriarty used a bus"),
+  // xLabel() / detLabel() with the player's name ("Moriarty (Flora)", "D2 · Holmes (Sam)").
+  function XN() { return ctl && ctl.xShort ? ctl.xShort() : "Mr. X"; }
+  function xLabel() { return ctl && ctl.xLabel ? ctl.xLabel() : "Mr. X"; }
+  function detLabel(i) { var o = ctl && ctl.detOwnerLabel ? ctl.detOwnerLabel(i) : ""; return detName(i) + (o ? " · " + o : ""); }
   function wide() { return window.matchMedia("(min-width: 900px)").matches; }
 
   // ---------- theme ----------
@@ -76,6 +81,9 @@
     for (var n = C.rules.minDetectivePawns; n <= C.rules.maxDetectivePawns; n++) nd.push(String(n));
     seg($("#sDets"), nd, String(settings.detectives), null, function (v) { settings = S.saveSetting("detectives", +v); note(); });
     seg($("#sLevel"), ["easy", "normal", "hard"], settings.level, ["Easy", "Normal", "Hard"], function (v) { settings = S.saveSetting("level", v); });
+    $("#sName").value = settings.name || "";
+    $("#sAlias").value = settings.alias || "";
+    $("#sAliasRow").classList.toggle("hidden", role !== "x");
     $("#sTactical").checked = settings.tactical;
     $("#sTactical").onchange = function () { settings = S.saveSetting("tactical", this.checked); };
     function note() {
@@ -88,7 +96,10 @@
     show("setup");
   }
   function startSolo() {
-    var c = new FY.Controller(board, { mode: "solo", role: setupRole, nDet: settings.detectives, level: settings.level });
+    var name = $("#sName").value.trim().slice(0, 16), alias = setupRole === "x" ? $("#sAlias").value.trim().slice(0, 20) : "";
+    settings = S.saveSetting("name", name);
+    if (setupRole === "x") settings = S.saveSetting("alias", alias);
+    var c = new FY.Controller(board, { mode: "solo", role: setupRole, nDet: settings.detectives, level: settings.level, name: name, alias: alias });
     c.newGame();
     enterGame(c);
   }
@@ -120,6 +131,7 @@
   function enterGame(c) {
     if (ctl) ctl.destroy();
     ctl = c;
+    if (c.opts.mode === "solo") S.set("resume", c.s.pending === "over" ? null : { kind: "solo" });
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
     show("game");
     ensureMaps();
@@ -152,6 +164,7 @@
     }
     if (ev && ev.t === "d" && s.history.length) tip("handover");
     if (s.history.some(function (h) { return h.k === "skip"; })) tip("stuck");
+    if (s.pending === "over" && ctl.opts.mode === "solo") S.set("resume", null);
     if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(function () { if (!ui.replay) showEnd(); }, 500); return; }
     render();
   }
@@ -209,7 +222,8 @@
     var key = (myTurn() || "-") + ctl.s.events.length;
     if (myTurn() && key !== ui.lastTurnKey) {
       ui.lastTurnKey = key;
-      if (settings.vibrate && navigator.vibrate) try { navigator.vibrate(25); } catch (e) {}
+      var active = !navigator.userActivation || navigator.userActivation.hasBeenActive; // browsers refuse to buzz before a first tap
+      if (settings.vibrate && navigator.vibrate && active) try { navigator.vibrate(25); } catch (e) {}
       focusMine(false);
     }
   }
@@ -220,25 +234,25 @@
     if (s.pending === "over") { var w = outcome(); return { h: w.title, p: w.reason }; }
     if (ctl.offline) return { h: "Connection lost", p: "Reconnecting to the game master…", think: true };
     var nr = R.nextReveal(s), next = s.log.length + 1;
-    var revTxt = nr ? (nr === next ? "Mr. X's next move is a reveal move." : "Mr. X surfaces after move " + nr + " (" + (nr - s.log.length) + " moves away).") : "No reveals left.";
+    var revTxt = nr ? (nr === next ? XN() + "'s next move is a reveal move." : XN() + " surfaces after move " + nr + " (" + (nr - s.log.length) + " moves away).") : "No reveals left.";
     if (who === "x") {
-      return { h: s.xStep === 1 ? "Second half of your double move" : "Your move, Mr. X", p: (nr === next ? "Careful: this move will be shown to the detectives." : revTxt), mine: true };
+      return { h: s.xStep === 1 ? "Second half of your double move" : "Your move, " + XN(), p: (nr === next ? "Careful: this move will be shown to the detectives." : revTxt), mine: true };
     }
     if (who === "det") {
       var i = selectedDet();
-      return { h: detName(i) + " to move", p: lastXText() + " " + (nr === next ? "Mr. X shows himself after his next move." : revTxt), mine: true };
+      return { h: detName(i) + " to move", p: lastXText() + " " + (nr === next ? XN() + " shows himself after his next move." : revTxt), mine: true };
     }
     if (ctl.busy || ctl.waitingFor) {
-      var w = ctl.waitingFor || (s.pending === "x" ? "Mr. X is slipping through the fog" : "The detectives are closing in");
+      var w = ctl.waitingFor || (s.pending === "x" ? XN() + " is slipping through the fog" : "The detectives are closing in");
       return { h: w, p: s.pending === "x" ? revTxt : lastXText(), think: true };
     }
-    return { h: s.pending === "x" ? "Mr. X is moving" : "Detectives are moving", p: lastXText(), think: true };
+    return { h: s.pending === "x" ? XN() + " is moving" : "Detectives are moving", p: lastXText(), think: true };
   }
   function lastXText() {
     var s = ctl.s, e = s.log[s.log.length - 1];
-    if (!e) return "Mr. X has not moved yet.";
-    var t = "Mr. X used " + (e.tk === "black" ? "a black ticket" : TK[e.tk].n.toLowerCase()) + (e.dbl ? " (double move)" : "") + ".";
-    if (s.last && s.last.move === s.log.length) t = "Mr. X surfaced at station " + s.last.pos + "!";
+    if (!e) return XN() + " has not moved yet.";
+    var t = XN() + " used " + (e.tk === "black" ? "a black ticket" : TK[e.tk].n.toLowerCase()) + (e.dbl ? " (double move)" : "") + ".";
+    if (s.last && s.last.move === s.log.length) t = XN() + " surfaced at station " + s.last.pos + "!";
     else if (s.last) t += " Last seen at " + s.last.pos + " after move " + s.last.move + ".";
     if (ctl.view !== "x" && tacticalOn()) t += " He could be at " + s.P.length + " stations.";
     return t;
@@ -356,7 +370,7 @@
   }
 
   function xPanel(who) {
-    var t = ctl.s.xT, h = '<div class="xbox"><div class="chips">';
+    var t = ctl.s.xT, h = '<div class="xbox"><div class="sect">' + esc(xLabel()) + '</div><div class="chips">';
     ["taxi", "bus", "underground", "black"].forEach(function (k) { h += '<span class="chip">' + tkDot(k) + TK[k].n + " " + t[k] + "</span>"; });
     h += '<span class="chip">' + tkDot("double", "2") + "Double " + t.double + "</span></div>";
     if (who === "x" && ctl.s.xStep === 0) {
@@ -384,7 +398,7 @@
     s.dets.forEach(function (d, i) {
       var isMine = ctl.myDets.indexOf(i) >= 0, can = mine.indexOf(i) >= 0;
       var moved = s.pending === "det" || s.pending === "probe" ? s.moved[i] : false;
-      var owner = ctl.ownerName ? ctl.ownerName(i) : "";
+      var owner = ctl.detOwnerLabel ? ctl.detOwnerLabel(i) : "";
       h += '<button class="piece' + (i === ui.sel && can ? " sel" : "") + (moved ? " done" : "") + '" data-det="' + i + '"' + (can ? "" : " disabled") + ">" +
         '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + (i + 1) + "</span>" + detName(i) + " · " + d.pos +
         (moved ? " ✓" : "") + (isMine || !owner ? "" : '<small style="color:var(--muted);font-weight:600">' + esc(owner) + "</small>") + "</span>" +
@@ -410,7 +424,7 @@
         var n = detectivesReach(g.to);
         out.push(n ? { c: "bad", t: n + " detective" + (n > 1 ? "s" : "") + " could reach this next turn." } : { c: "good", t: "No detective can reach this next turn." });
       } else if (who === "det") {
-        if (s.P.indexOf(g.to) >= 0 && s.P.length <= 12) out.push({ c: "good", t: "Mr. X could be here (1 of " + s.P.length + ")." });
+        if (s.P.indexOf(g.to) >= 0 && s.P.length <= 12) out.push({ c: "good", t: XN() + " could be here (1 of " + s.P.length + ")." });
         var near = s.P.filter(function (p) { return board.distLand[g.to][p] <= 1; }).length;
         if (near) out.push({ c: "", t: "Next to " + near + " of his " + s.P.length + " possible stations." });
       }
@@ -479,7 +493,7 @@
     if (!ctl) return;
     var s = ctl.s, route = (ctl.view === "x" || s.pending === "over") ? ctl.route() : null;
     var h = '<div class="lv"><div class="chips" role="group" aria-label="Filter">';
-    var filters = [["all", "Everyone"], ["x", "Mr. X"]];
+    var filters = [["all", "Everyone"], ["x", XN()]];
     s.dets.forEach(function (d, i) { filters.push(["d" + i, detName(i)]); });
     if (ctl.opts.mode !== "solo") filters.push(["sys", "Game"]);
     filters.forEach(function (f) { h += '<button class="chip' + (ui.filter === f[0] ? " sel" : "") + '" data-filter="' + f[0] + '">' + f[1] + "</button>"; });
@@ -511,16 +525,16 @@
     $("#vLog").innerHTML = h;
   }
   function logItem(e, route) {
-    if (e.k === "start") return '<li class="sys">Detectives start at ' + e.dets.join(", ") + (route ? "; Mr. X starts at " + route[0] : "") + ".</li>";
+    if (e.k === "start") return '<li class="sys">Detectives start at ' + e.dets.join(", ") + (route ? "; " + XN() + " starts at " + route[0] : "") + ".</li>";
     if (e.k === "x") {
       var pos = e.rev != null ? e.rev : route && route[e.move];
-      return '<li><span class="who">Mr. X</span>' + tkDot(e.tk) + " " + TK[e.tk].n + (e.dbl ? " (double)" : "") +
+      return '<li><span class="who">' + esc(XN()) + "</span>" + tkDot(e.tk) + " " + TK[e.tk].n + (e.dbl ? " (double)" : "") +
         (pos ? ' <span class="ar">→</span> <b>' + pos + "</b>" : ' <span class="ar">→ ?</span>') + (e.rev != null ? " ★ seen" : "") + "</li>";
     }
-    if (e.k === "d") return '<li><span class="who" style="color:' + DCOL[e.i % DCOL.length] + '">' + detName(e.i) + "</span>" + tkDot(e.tk) + " " + e.from + ' <span class="ar">→</span> ' + e.to + "</li>";
+    if (e.k === "d") return '<li><span class="who" style="color:' + DCOL[e.i % DCOL.length] + '">' + esc(detLabel(e.i)) + "</span>" + tkDot(e.tk) + " " + e.from + ' <span class="ar">→</span> ' + e.to + "</li>";
     if (e.k === "skip") return '<li class="sys">' + detName(e.i) + " could not move and was skipped.</li>";
-    if (e.k === "caught") return '<li class="win">' + detName(e.i) + " caught Mr. X at " + e.pos + "!</li>";
-    if (e.k === "trapped") return '<li class="win">Mr. X was trapped.</li>';
+    if (e.k === "caught") return '<li class="win">' + detName(e.i) + " caught " + esc(XN()) + " at " + e.pos + "!</li>";
+    if (e.k === "trapped") return '<li class="win">' + esc(XN()) + " was trapped.</li>";
     if (e.k === "end") return '<li class="win">' + esc(e.reason) + "</li>";
     if (e.k === "sys") return '<li class="sys">' + esc(e.text) + "</li>";
     return "";
@@ -534,10 +548,10 @@
     var xu = { taxi: 0, bus: 0, underground: 0, black: 0, double: 0 };
     s.history.forEach(function (e) { if (e.k === "x") { xu[e.tk]++; if (e.dbl) xu.double += 0.5; } });
     var h = '<div class="sect">Stats</div><table class="stats"><thead><tr><th>Player</th><th>' + tkDot("taxi") + "</th><th>" + tkDot("bus") + "</th><th>" + tkDot("underground") + "</th><th>Extra</th><th>Hops from X at reveals</th></tr></thead><tbody>";
-    h += "<tr><td>Mr. X</td><td>" + xu.taxi + "</td><td>" + xu.bus + "</td><td>" + xu.underground + "</td><td>" + xu.black + " black, " + xu.double + " double</td><td>–</td></tr>";
+    h += "<tr><td>" + esc(xLabel()) + "</td><td>" + xu.taxi + "</td><td>" + xu.bus + "</td><td>" + xu.underground + "</td><td>" + xu.black + " black, " + xu.double + " double</td><td>–</td></tr>";
     s.dets.forEach(function (d, i) {
       var u = used[i] || { taxi: 0, bus: 0, underground: 0 };
-      h += '<tr><td style="color:' + DCOL[i % DCOL.length] + ';font-weight:700">' + detName(i) + "</td><td>" + u.taxi + "</td><td>" + u.bus + "</td><td>" + u.underground + "</td><td></td><td>" + ((near[i] || []).join(", ") || "–") + "</td></tr>";
+      h += '<tr><td style="color:' + DCOL[i % DCOL.length] + ';font-weight:700">' + esc(detLabel(i)) + "</td><td>" + u.taxi + "</td><td>" + u.bus + "</td><td>" + u.underground + "</td><td></td><td>" + ((near[i] || []).join(", ") || "–") + "</td></tr>";
     });
     return h + "</tbody></table>";
   }
@@ -551,7 +565,7 @@
     for (var k = 1; k < ctl.s.events.length; k++) {
       var ev = ctl.s.events[k];
       R.apply(board, s, ev);
-      if (ev.t === "x") { xi++; frames.push({ dets: s.dets.map(function (d) { return d.pos; }), x: route[xi], label: "Move " + xi + ": Mr. X by " + TK[ev.tk].n.toLowerCase() + " to " + route[xi] }); }
+      if (ev.t === "x") { xi++; frames.push({ dets: s.dets.map(function (d) { return d.pos; }), x: route[xi], label: "Move " + xi + ": " + XN() + " by " + TK[ev.tk].n.toLowerCase() + " to " + route[xi] }); }
       if (ev.t === "d") frames.push({ dets: s.dets.map(function (d) { return d.pos; }), x: route[xi], label: detName(ev.i) + " by " + TK[ev.tk].n.toLowerCase() + " to " + ev.to });
     }
     ui.replay = { frames: frames, k: 0, label: frames[0].label };
@@ -586,13 +600,15 @@
   function outcome() {
     var s = ctl.s, v = ctl.verdict;
     var winner = v ? "det" : s.winner;
-    return { winner: winner, title: winner === "x" ? "Mr. X wins" : "The detectives win", reason: v ? "Mr. X broke the rules: " + v.problems[0] + "." : s.reason };
+    var reason = v ? XN() + " broke the rules: " + v.problems[0] + "." : s.reason.replace(/Mr\. X/g, XN());
+    return { winner: winner, title: winner === "x" ? XN() + " wins" : "The detectives win", reason: reason };
   }
   function showEnd() {
     var route = ctl.route(), w = outcome();
     var youWin = ctl.spectator ? null : (w.winner === "x") === !!ctl.humanX;
-    overlay('<h2 class="disp">' + (youWin === null ? w.title : youWin ? "You win!" : "You lose") + "</h2><p>" + esc(w.reason) + "</p>" +
-      (route ? '<p class="note">Mr. X\'s route: ' + route.join(" → ") + "</p>" : "") +
+    var me = ctl.myName ? ctl.myName() : "";
+    overlay('<h2 class="disp">' + esc(youWin === null ? w.title : youWin ? "You win" + (me ? ", " + me : "") + "!" : "You lose" + (me ? ", " + me : "")) + "</h2><p>" + esc(w.reason) + "</p>" +
+      (route ? '<p class="note">' + esc(xLabel()) + "'s route: " + route.join(" → ") + "</p>" : "") +
       '<div class="row"><button class="btn pri grow" data-act="rematch">Rematch</button><button class="btn grow" data-act="replay">Replay</button></div>' +
       '<div class="row"><button class="btn grow" data-act="log">Activity log</button><button class="btn grow" data-act="menu">Menu</button></div>');
   }
@@ -681,6 +697,7 @@
       '<p class="note">' + (solo ? "Your solo game is saved on this device; continue it from the main menu." : ctl.leaveNote ? ctl.leaveNote() : "") + "</p>");
   }
   function toMenu() {
+    S.set("resume", null); // leaving on purpose: don't jump back in on the next load
     if (ctl) { if (ctl.leave) ctl.leave(); ctl.destroy(); ctl = null; }
     ui.replay = null;
     $("#toast").classList.add("hidden");
@@ -740,6 +757,11 @@
     $("#gHelp").onclick = showHelp;
     $("#tabs").onclick = function (e) { var b = e.target.closest("[data-tab]"); if (b) setTab(b.getAttribute("data-tab")); };
     refreshMenu();
+    if (!S.works()) toast("Games won't be saved", "This browser isn't keeping data (a private window?), so a refresh will lose your game.");
+    // After a refresh, go straight back to the game this device was in.
+    var r = S.get("resume", null);
+    if (r && r.kind === "solo" && S.get("solo", null)) continueSolo();
+    else if (r && (r.kind === "host" || r.kind === "guest") && FY.Net) setTimeout(function () { FY.Net.autoResume(r); }, 0);
     $("#painting").classList.remove("hidden");
     FY.Terrain.background(scene).then(function (r) {
       bg = r;

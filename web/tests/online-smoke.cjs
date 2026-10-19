@@ -59,9 +59,7 @@ function serve() {
       const moves = await pages.h.evaluate(() => (FY.UI.controller && FY.UI.controller.s ? FY.UI.controller.s.log.length : 0)).catch(() => 0);
       if (opts.reloadGuest && !reloaded && moves >= 4) {
         reloaded = true;
-        await pages.b.reload();
-        await pages.b.click("#mOnline");
-        await pages.b.click("[data-net=rejoin]");
+        await pages.b.reload(); // no clicks: a refresh must drop the player straight back in
         await pages.b.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
         console.log("  guest b rejoined at move", moves);
       }
@@ -71,8 +69,6 @@ function serve() {
         const keys = await pages.h.evaluate(() => Object.keys(localStorage).map((k) => k + ":" + localStorage.getItem(k).length));
         if (!saved) console.log("  no host save; storage:", keys.join(" "));
         await pages.h.reload();
-        await pages.h.click("#mOnline");
-        await pages.h.click("[data-net=resume]");
         await pages.h.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
         console.log("  host resumed at move", moves);
       }
@@ -93,6 +89,18 @@ function serve() {
       await g.click("[data-net=join]");
     }
     await h.waitForFunction(() => document.querySelectorAll(".pl").length === 3, null, { timeout: 15000 });
+    if (opts.reloadHost) {
+      // Refreshing the game master's page in the lobby keeps the code and the players.
+      await h.reload();
+      await h.waitForFunction((c) => { const el = document.querySelector(".codebig"); return el && el.textContent.trim() === c && document.querySelectorAll(".pl").length === 3 && !document.querySelector(".pl .off"); }, code, { timeout: 20000 })
+        .catch(async () => errors.push("lobby after host refresh: " + (await h.textContent("#onlineInner")).slice(0, 200)));
+    }
+    // The future Mr. X picks an alias from their own lobby screen.
+    const xPage = { h, a, b }[xPlayer];
+    await xPage.click("[data-net=editme]");
+    await xPage.fill("#eAlias", "Moriarty");
+    await xPage.click("[data-net=saveme]");
+    await h.waitForFunction(() => document.querySelector("#onlineInner").textContent.includes("Moriarty ("), null, { timeout: 10000 });
     await h.click('[data-ref="' + referee + '"]');
     await h.click('[data-ndet="3"]');
     const ids = await h.evaluate(() => Object.keys(FY.Net.session.players));
@@ -110,10 +118,11 @@ function serve() {
     for (const [n, p] of [["h", h], ["a", a], ["b", b]]) {
       const r = await p.evaluate(() => {
         const c = FY.UI.controller, s = c.s, sess = FY.Net.session;
-        return { pending: s.pending, winner: s.winner, reason: s.reason, moves: s.log.length, entries: sess.entries.length, audit: sess.audit, problem: sess.problem || null, view: c.view, humanX: c.humanX };
+        return { xLabel: c.xLabel(), pending: s.pending, winner: s.winner, reason: s.reason, moves: s.log.length, entries: sess.entries.length, audit: sess.audit, problem: sess.problem || null, view: c.view, humanX: c.humanX };
       });
       summary.push(n + ": " + JSON.stringify(r));
       if (r.problem) errors.push(referee + " " + n + ": " + r.problem);
+      if (!/^Moriarty \(/.test(r.xLabel)) errors.push(referee + " " + n + ": Mr. X's alias not shown (" + r.xLabel + ")");
       if (r.pending !== "over") errors.push(referee + " " + n + ": game not over");
       if (referee === "verified" && (!r.audit || !r.audit.ok)) errors.push(referee + " " + n + ": audit missing or failed " + JSON.stringify(r.audit));
     }
@@ -125,7 +134,37 @@ function serve() {
     for (const p of [h, a, b]) await p.close();
   }
 
-  if (peer) await game("verified", "a", { reloadGuest: true });
+  // An 8-player game: Mr. X plus seven detectives, each on their own device.
+  async function bigGame() {
+    const names = ["h", "a", "b", "c", "d", "e", "f", "g"], pages = {};
+    for (const n of names) pages[n] = await open(n);
+    const h = pages.h;
+    await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
+    const code = (await h.textContent(".codebig")).trim();
+    for (const n of names.slice(1)) { const g = pages[n]; await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); await h.waitForTimeout(150); }
+    await h.waitForFunction(() => document.querySelectorAll(".pl").length === 8, null, { timeout: 20000 });
+    await pages.a.click("[data-net=editme]"); await pages.a.fill("#eAlias", "Moriarty"); await pages.a.click("[data-net=saveme]");
+    const guestIds = (await h.evaluate(() => Object.keys(FY.Net.session.players))).filter((id) => id !== "host");
+    await h.click('[data-role="x"][data-pid="' + guestIds[0] + '"]');
+    await h.click('[data-role="det"][data-pid="host"]');
+    await h.waitForFunction(() => FY.Net.session.settings.nDet === 7, null, { timeout: 5000 }).catch(() => errors.push("8 players: lobby did not raise the detectives to 7"));
+    if (out) await h.screenshot({ path: path.join(out, "lobby-8.png"), fullPage: true });
+    await h.click("[data-net=start]");
+    for (const n of names) await pages[n].waitForSelector("#game:not(.hidden)", { timeout: 20000 });
+    const done = await playUntilOver(pages, {});
+    await h.waitForTimeout(1000);
+    const res = [];
+    for (const n of names) res.push(await pages[n].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
+    console.log("8-player game:", done ? "finished" : "DID NOT FINISH", JSON.stringify(res[0]));
+    if (new Set(res.map((r) => r.entries)).size !== 1) errors.push("8 players: devices disagree on the log");
+    res.forEach((r, k) => { if (r.problem || r.audit !== true || r.over !== "over") errors.push("8 players, " + names[k] + ": " + JSON.stringify(r)); });
+    if (res[0].dets !== 7 || res.filter((r) => r.mine === 1).length !== 7) errors.push("8 players: expected 7 detectives, one each");
+    if (out) await pages.c.screenshot({ path: path.join(out, "online-8-c.png") });
+    for (const n of names) await pages[n].close();
+  }
+
+  if (process.env.FY_PLAYERS === "8") await bigGame();
+  else if (peer) await game("verified", "a", { reloadGuest: true });
   else {
     await game("verified", "a", { reloadGuest: true, reloadHost: true });
     await game("trusted", "b", { reloadGuest: true });

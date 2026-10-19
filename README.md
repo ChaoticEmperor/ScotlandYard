@@ -28,7 +28,7 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 
 ## Fog Yard (web version)
 
-`web/` contains **Fog Yard**, a mobile-first browser version of the game, playable solo or online with 2 to 6 players. It is a static site: plain HTML, CSS and JavaScript with no build step and no frameworks. The only external scripts are PeerJS 1.5.4 and the Oswald font, both from jsDelivr and pinned to exact versions.
+`web/` contains **Fog Yard**, a mobile-first browser version of the game, playable solo or online with 2 to 8 players (Mr. X plus up to 7 detectives; more people can join to watch). It is a static site: plain HTML, CSS and JavaScript with no build step and no frameworks. The only external scripts are PeerJS 1.5.4 and the Oswald font, both from jsDelivr and pinned to exact versions.
 
 > Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Fog Yard is an unofficial fan project and is not affiliated with Ravensburger.
 >
@@ -47,13 +47,16 @@ To rebuild `web.zip` after changes, run `python3 web/tools/package.py`.
 ### How online play works
 
 - **Hosting.** One player hosts and becomes the **game master**. They get a 4-letter code to share. Others choose *Play online* → enter the code → *Join game*.
-- **Roles.** In the lobby the game master chooses who is **Mr. X**, who plays **detectives**, and who just watches. Watching includes the game master themselves, if they only want to referee. They also choose how many detective pieces go on the board (2 to 5); the pieces are shared out between the detective players. They can pick a random Mr. X and allow tactical hints.
+- **Names and aliases.** Everyone types their own name, and optionally an alias for their role, on their own phone: on the join screen, from *Edit* in the lobby, or mid-game from the game menu. Nobody has to name everyone else. Mr. X then shows as "Mr. X (Flora)", or "Moriarty (Flora)" with an alias, and detectives as "D2 · Holmes (Sam)".
+- **Roles.** In the lobby the game master chooses who is **Mr. X**, who plays **detectives**, and who just watches. Watching includes the game master themselves, if they only want to referee. They also choose how many detective pieces go on the board (2 to 7; the classic game uses up to 5, and 6–7 is a big-group variant where Mr. X gets one black ticket per detective). The pieces are shared out between the detective players, and the count rises automatically when more people choose detective. They can pick a random Mr. X and allow tactical hints.
 - **Connections.** Devices connect **peer to peer** through PeerJS (WebRTC). The game master's device is the hub. No game data is stored on a server; the public PeerJS server is only used to introduce devices to each other.
 - **Referee mode.** The game master picks one in the lobby, and every player can see which:
   - **Verified** (default). Every move is signed on the player's own device (ECDSA). Mr. X's position never leaves his device: each of his moves carries a SHA-256 commitment, and at the end he reveals his route so every device can audit the whole game. A cheat by anyone, the game master included, is caught and named. To rule out impersonation, players compare the 🔑 key fingerprints shown in the lobby.
   - **Trusted game master.** The game master's device holds Mr. X's position (and can see it). This is simpler, and the game master can take over Mr. X if he leaves.
 - **Reconnects.** If someone's connection drops, their screen shows *Connection lost. Reconnecting…* and they rejoin automatically. After a reload, they use *Rejoin game* from the online menu. If the game master reloads, *Resume hosting* restores the saved game and players reconnect on their own. From the game menu, the game master can hand an absent player's pieces to someone else.
-- **TURN servers.** Players on strict networks (some corporate or mobile networks) may need a TURN relay. Add one to `FY.CONFIG.net.iceServers` in `web/js/config.js`; the list is empty by default.
+- **Which network?** Any internet connection works. The phones don't need to be on the same Wi-Fi or hotspot, but each one needs internet: the site loads from Netlify, and PeerJS's public server introduces the devices to each other. A hotspot with no mobile data won't work (see `web/NOTES.md`).
+- **TURN servers.** Players on strict networks (some corporate, school or mobile networks) may need a TURN relay. PeerJS already includes free, best-effort relays. For a dependable one, add yours to `FY.CONFIG.net.iceServers` in `web/js/config.js`; it is added to the defaults, not swapped for them. One option is Metered's free plan:
+  `iceServers: [{ urls: ["turn:standard.relay.metered.ca:80", "turn:standard.relay.metered.ca:443?transport=tcp", "turns:standard.relay.metered.ca:443"], username: "…", credential: "…" }]`
 
 ### Tuning and tests
 

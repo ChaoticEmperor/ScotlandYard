@@ -269,3 +269,31 @@ Humans as detectives get easy, normal or hard to choose from.
 - **Offline relay.** The game master's device must stay open: it relays the log. It autosaves and can resume after a reload.
 - **Peer-to-peer connectivity.** Some networks block peer-to-peer connections; configure a TURN server in `FY.CONFIG.net.iceServers`.
 - **Street texture.** The illustrated map's side streets (outside the route network) come from OpenStreetMap, but the game's own streets are the station links, not real streets.
+
+## Connecting devices (research summary)
+
+| Setup | Works? | Notes |
+|---|---|---|
+| Every phone has internet (any networks) | **Yes** | The site loads from Netlify, and the public PeerJS server introduces the devices. PeerJS's built-in Google STUN and free, best-effort PeerJS TURN relays cover most NATs. |
+| Same Wi-Fi or a hotspot **with** mobile data | **Yes** | Often the most reliable, because direct local connections are possible. |
+| Strict networks (carrier-grade NAT, corporate or school Wi-Fi blocking UDP) | Usually, with TURN | Add a TURN server to `FY.CONFIG.net.iceServers`; it is now added to PeerJS's defaults instead of replacing them. Metered's free plan fits a static site. Cloudflare TURN needs a server-side token. |
+| Hotspot **without** internet | **No (today)** | The site, the jsDelivr scripts and the PeerJS signalling server are all unreachable. Fixing this would need a service-worker cache plus QR-code signalling over raw WebRTC. iPhone hotspots reportedly isolate clients, so that path is unreliable. |
+| One phone passed around (pass-and-play) | Not built yet | Needs no network at all; the cheapest offline option. |
+
+Netlify Drop serves static files only. Netlify Functions can't hold WebSockets, so hosting our own signalling there isn't worthwhile. The public PeerJS server is the better choice. Self-hosting a PeerJS server (Render, Fly) adds cost or cold starts for little gain.
+
+## Names, aliases and big groups
+
+- **Names and aliases.** Each player sets their own name and an optional role alias on their own device: join screen, lobby *Edit*, or mid-game from the game menu. Mid-game changes become host-signed `rename` entries, so every device updates. The display formats are "Moriarty (Flora)", "Mr. X (Flora)" and "D2 · Holmes (Sam)". Solo setup has the same name field and an alias for Mr. X.
+- **Up to 8 players.** That is Mr. X plus up to 7 detective pieces (`maxDetectivePawns: 7`; classic is 5), and up to 12 people in a lobby, the extras watching. With more detective players than pieces, the lobby raises the piece count automatically.
+- **Balance.** In 200 AI games against a normal Mr. X, the detectives win about 30% with 5 pieces, 36% with 6 and 38% with 7. Mr. X's black tickets scale with the detective count.
+- **Tested.** An 8-player online game ran on 8 devices with one detective each; the audit passed on every device (`FY_PLAYERS=8 node tests/online-smoke.cjs`).
+
+## Refresh keeps your place
+
+The device remembers which game it is in (`resume` in storage). After a refresh:
+- **Solo games** reopen at the same move.
+- **Guests** rejoin automatically.
+- **The game master** re-opens the same code, lobby or game, and players reconnect on their own.
+
+Leaving on purpose (*Leave game*, or *Leave* in the lobby) or finishing a game clears this. If the browser can't store anything (some private windows), the menu warns that a refresh will lose the game.

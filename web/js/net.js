@@ -61,9 +61,13 @@
   var Transports = {};
   Transports.peer = {
     available: function () { return typeof window.Peer !== "undefined"; },
+    // Extra TURN/STUN servers are added to PeerJS's own defaults (its STUN plus its free,
+    // best-effort TURN relays), never replacing them.
     options: function () {
-      var ice = C.net.iceServers && C.net.iceServers.length ? [{ urls: "stun:stun.l.google.com:19302" }].concat(C.net.iceServers) : null;
-      return ice ? { config: { iceServers: ice } } : {};
+      if (!C.net.iceServers || !C.net.iceServers.length) return {};
+      var pj = window.peerjs && window.peerjs.util && window.peerjs.util.defaultConfig;
+      var base = pj && pj.iceServers ? pj.iceServers : [{ urls: "stun:stun.l.google.com:19302" }];
+      return { config: { iceServers: base.concat(C.net.iceServers) } };
     },
     wrap: function (dc, h) {
       var conn = { open: false, send: function (o) { try { if (dc.open) dc.send(o); } catch (e) {} }, close: function () { try { dc.close(); } catch (e) {} } };
@@ -154,7 +158,7 @@
   // Who may author an entry, given the current seats and referee mode.
   function authorFor(sess, ev) {
     var seats = sess.seats || {}, xAuthor = sess.settings.referee === "trusted" ? "host" : seats.mrx;
-    if (ev.t === "setup" || ev.t === "start" || ev.t === "seat" || ev.t === "sys") return "host";
+    if (ev.t === "setup" || ev.t === "start" || ev.t === "seat" || ev.t === "sys" || ev.t === "rename") return "host";
     if (ev.t === "d") return seats.pawns && seats.pawns[ev.i];
     return xAuthor; // commit0, x, probe, trapped, route
   }
@@ -175,13 +179,22 @@
       sess.commit0 = ev.c;
     } else if (ev.t === "seat") {
       if (ev.pawn === "mrx") sess.seats.mrx = ev.to; else sess.seats.pawns[ev.pawn] = ev.to;
-      note(sess, (ev.pawn === "mrx" ? "Mr. X" : "D" + (ev.pawn + 1)) + " is now played by " + nameOf(sess, ev.to) + ".");
+      note(sess, (ev.pawn === "mrx" ? "Mr. X" : "D" + (ev.pawn + 1)) + " is now played by " + (ev.to === sess.myId ? "you" : labelOf(sess, ev.to)) + ".");
     } else if (ev.t === "route") {
       sess.routeEntry = ev;
+    } else if (ev.t === "rename") {
+      var r = sess.roster && sess.roster[ev.id];
+      if (r) { var was = labelOf(sess, ev.id); r.name = ev.name; r.alias = ev.alias; note(sess, was + " is now " + labelOf(sess, ev.id) + "."); }
     } else if (ev.t === "sys") note(sess, ev.text);
     sess.entries.push(entry);
   }
   function note(sess, text) { if (sess.state) sess.state.history.push({ k: "sys", text: text, turn: sess.state.turn }); else (sess.pendingNotes = sess.pendingNotes || []).push(text); }
+  // "Moriarty (Flora)" when a player set an alias, otherwise just "Flora".
+  function labelOf(sess, id) {
+    var p = (sess.roster || sess.players || {})[id] || (sess.lobby && sess.lobby.players[id]);
+    if (!p) return "someone";
+    return p.alias ? p.alias + " (" + p.name + ")" : p.name;
+  }
   function nameOf(sess, id) { var p = (sess.roster || sess.players || {})[id]; return id === sess.myId ? "you" : p ? p.name : id === "host" ? "the game master" : "someone"; }
 
   // Full check of one entry against the session: author, signature (when keys exist) and rules.
@@ -295,17 +308,31 @@
     if (this.sess.routeEntry) return this.sess.routeEntry.route;
     return this.secret ? [this.secret.start].concat(this.secret.route) : null;
   };
-  NetController.prototype.ownerName = function (i) { var id = this.sess.seats.pawns[i]; return id === this.sess.myId ? "you" : nameOf(this.sess, id); };
+  NetController.prototype.detOwnerLabel = function (i) {
+    var id = this.sess.seats.pawns[i];
+    if (id === this.sess.myId) return "you";
+    return labelOf(this.sess, id);
+  };
+  NetController.prototype.xShort = function () {
+    var p = (this.sess.roster || {})[this.sess.seats.mrx];
+    return (p && p.alias) || "Mr. X";
+  };
+  NetController.prototype.xLabel = function () {
+    var id = this.sess.seats.mrx, p = (this.sess.roster || {})[id];
+    return this.xShort() + " (" + (id === this.sess.myId ? "you" : p ? p.name : "?") + ")";
+  };
+  NetController.prototype.myName = function () { var p = (this.sess.roster || {})[this.sess.myId]; return p ? p.name : ""; };
   NetController.prototype.allowTactical = function () { return !!this.sess.settings.tactical; };
   NetController.prototype.leaveNote = function () {
     return this.sess.role === "host" ? "The game stays saved on this device; resume hosting from the online menu." : "You can rejoin with the same code while the game master's game is open.";
   };
   NetController.prototype.extraMenu = function () {
-    return (this.isGM ? '<button class="btn" data-act="seats">Players and seats</button>' : "") + '<button class="btn" data-act="keys">Check fingerprints</button>';
+    return '<button class="btn" data-act="profile">Change my name or alias</button>' + (this.isGM ? '<button class="btn" data-act="seats">Players and seats</button>' : "") + '<button class="btn" data-act="keys">Check fingerprints</button>';
   };
   NetController.prototype.onAction = function (a) {
     if (a === "seats") seatsDialog(this.sess);
     if (a === "keys") keysDialog(this.sess);
+    if (a === "profile") profileDialog(this.sess);
   };
   NetController.prototype.rematch = function () {
     if (this.sess.role !== "host") { FY.UI.toast("Rematch", "Ask the game master to start a rematch."); return; }
@@ -430,12 +457,13 @@
   }
   function persistHost(sess) {
     if (sess.role !== "host" || sess.closed) return;
+    if (sess.state && sess.state.pending === "over" && sess.routeEntry) S.set("resume", null);
     S.set("host", { code: sess.code, entries: sess.entries, players: sess.players, settings: sess.settings, lobbySeats: sess.lobbySeats, keys: sess.keys && { pub: sess.keys.pub, priv: sess.keys.priv }, secret: sess.secret, over: !!(sess.state && sess.state.pending === "over" && sess.routeEntry) });
   }
 
   function hostSession(code, saved) {
     var sess = baseSession("host", code), T = transport();
-    sess.players.host = { name: S.settings().name || "Game master", key: null, online: true, fp: "" };
+    sess.players.host = { name: S.settings().name || "Game master", alias: S.settings().alias || "", key: null, online: true, fp: "" };
     sess.lobbySeats = { mrx: "host", roles: { host: "x" } };
     sess.conns = {};
     sess.author = function (ev) {
@@ -485,21 +513,21 @@
       if (!m || typeof m !== "object" || sess.closed) return;
       if (who && sess.players[who]) sess.players[who].seen = Date.now();
       if (m.t === "hello") {
-        var id = String(m.id || "").slice(0, 32), name = String(m.name || "Player").slice(0, 16) || "Player";
+        var id = String(m.id || "").slice(0, 32), name = cleanName(m.name, 16) || "Player " + (Object.keys(sess.players).length + 1), alias = cleanName(m.alias, 20);
         if (!id || id === "host") return conn.send({ t: "error", text: "Bad hello." });
         var known = sess.players[id];
         var seated = Object.keys(sess.players).length;
-        if (!known && (sess.state || seated >= C.players.max)) return conn.send({ t: "error", text: sess.state ? "That game has already started." : "That game is full." });
+        if (!known && (sess.state || seated >= C.players.maxInLobby)) return conn.send({ t: "error", text: sess.state ? "That game has already started." : "That game is full." });
         if (known && known.key && m.key && (known.key.x !== m.key.x || known.key.y !== m.key.y)) return conn.send({ t: "error", text: "This device's key changed; it can't rejoin that seat." });
         who = id;
         var p = sess.players[id] = known || { name: name, key: m.key || null };
-        if (!known) p.name = name;
+        if (!known) { p.name = name; p.alias = alias; }
         p.online = true; p.seen = Date.now();
         if (sess.conns[id] && sess.conns[id] !== conn) try { sess.conns[id].close(); } catch (e) {}
         sess.conns[id] = conn;
         var fpDone = p.key && !p.fp && subtle ? fingerprint(p.key).then(function (fp) { p.fp = fp; }) : Promise.resolve();
         fpDone.then(function () {
-          if (!sess.lobbySeats.roles[id]) sess.lobbySeats.roles[id] = "det";
+          if (!sess.lobbySeats.roles[id]) sess.lobbySeats.roles[id] = playingCount(sess) >= C.players.max ? "watch" : "det";
           conn.send({ t: "welcome", code: sess.code, you: id });
           conn.send({ t: "sync", entries: sess.entries });
           broadcastLobby(sess);
@@ -518,6 +546,7 @@
         if (!legal || (m.dbl && !R.canDouble(FY.UI.board, s, sess.secret) && s.xStep === 0)) return conn.send({ t: "reject", reason: "That move isn't legal." });
         holderMove(sess, { to: m.opt.to, tk: m.opt.tk }, !!m.dbl);
       } else if (m.t === "sync?") conn.send({ t: "sync", entries: sess.entries });
+      else if (m.t === "profile" && who) hostProfile(sess, who, m.name, m.alias);
     };
     h.close = function () {
       if (who && sess.conns[who] === conn) {
@@ -532,6 +561,27 @@
     };
   }
   function hostNote(sess, text) { sess.author({ t: "sys", text: text }); }
+  function cleanName(v, n) { return String(v || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, n); }
+  function playingCount(sess) {
+    var roles = sess.lobbySeats.roles;
+    return Object.keys(sess.players).filter(function (id) { return roles[id] && roles[id] !== "watch"; }).length;
+  }
+  // A player's new name or alias: in the lobby it just updates the list; during a game it
+  // becomes a rename entry in the shared log so every device shows the new name.
+  function hostProfile(sess, id, name, alias) {
+    var p = sess.players[id];
+    if (!p) return;
+    name = cleanName(name, 16) || p.name; alias = cleanName(alias, 20);
+    p.name = name; p.alias = alias;
+    if (sess.state) sess.author({ t: "rename", id: id, name: name, alias: alias });
+    broadcastLobby(sess);
+    sess.emit();
+  }
+  function setProfile(sess, name, alias) {
+    S.saveSetting("name", cleanName(name, 16)); S.saveSetting("alias", cleanName(alias, 20));
+    if (sess.role === "host") hostProfile(sess, "host", name, alias);
+    else { sess.name = cleanName(name, 16) || sess.name; sess.alias = cleanName(alias, 20); sess.send({ t: "profile", name: name, alias: alias }); }
+  }
 
   // Appends an entry after the same checks every device will run, then relays it. Verification,
   // numbering and applying happen in one queued step, so entries can never interleave.
@@ -564,13 +614,19 @@
   }
 
   function broadcastLobby(sess) {
+    if (sess.role === "host") persistHost(sess);
+    // With more detective players than pieces, add pieces (up to the maximum) so everyone plays.
+    if (!sess.state) {
+      var dp = Object.keys(sess.players).filter(function (id) { return sess.lobbySeats.roles[id] === "det"; }).length;
+      if (dp > sess.settings.nDet) sess.settings.nDet = Math.min(C.rules.maxDetectivePawns, dp);
+    }
     var info = lobbyInfo(sess);
     sess.broadcast({ t: "lobby", info: info });
     if (current === sess) renderLobby();
   }
   function lobbyInfo(sess) {
     var players = {};
-    Object.keys(sess.players).forEach(function (id) { var p = sess.players[id]; players[id] = { name: p.name, fp: p.fp || "", online: !!p.online }; });
+    Object.keys(sess.players).forEach(function (id) { var p = sess.players[id]; players[id] = { name: p.name, alias: p.alias || "", fp: p.fp || "", online: !!p.online }; });
     return { code: sess.code, players: players, roles: sess.lobbySeats.roles, settings: sess.settings, started: !!sess.state };
   }
 
@@ -598,7 +654,7 @@
   function hostStartGame(sess) {
     var seats = seatsFromLobby(sess), board = FY.UI.board;
     var roster = {};
-    Object.keys(sess.players).forEach(function (id) { roster[id] = { name: sess.players[id].name, key: sess.players[id].key, fp: sess.players[id].fp }; });
+    Object.keys(sess.players).forEach(function (id) { roster[id] = { name: sess.players[id].name, alias: sess.players[id].alias || "", key: sess.players[id].key, fp: sess.players[id].fp }; });
     var rules = R.makeRules(C.rules, sess.settings.nDet);
     var made = R.setup(board, rules);
     sess.secret = null;
@@ -615,6 +671,7 @@
   function guestSession(code, name) {
     var sess = baseSession("guest", code), T = transport(), saved = S.get("guest", null);
     sess.name = name;
+    sess.alias = S.settings().alias || "";
     sess.tries = 0;
     var ready = saved && saved.keys ? loadKeys(saved.keys) : subtle ? genKeys() : Promise.resolve(null);
     sess.secret = S.get("xsecret." + code, null);
@@ -628,7 +685,7 @@
       sess.conn = T.connect(C.net.peerPrefix + code, {
         open: function () {
           sess.tries = 0; sess.offline = false; sess.lastSeen = Date.now();
-          sess.send({ t: "hello", id: sess.myId, name: sess.name, key: sess.keys && sess.keys.pub });
+          sess.send({ t: "hello", id: sess.myId, name: sess.name, alias: sess.alias, key: sess.keys && sess.keys.pub });
         },
         data: function (m) { sess.lastSeen = Date.now(); guestMsg(sess, m); },
         close: function () { lost(); },
@@ -712,25 +769,27 @@
     var h = '<button class="linkbtn back" data-net="back">&larr; Back</button><h2 class="disp">Play online</h2>' +
       (msg ? '<p class="note" style="color:var(--bad);font-weight:700">' + FY.UI.esc(msg) + "</p>" : "") +
       '<input class="txt" id="nName" maxlength="16" placeholder="Your name" autocomplete="nickname" aria-label="Your name" value="' + FY.UI.esc(st.name || "") + '">' +
+      '<input class="txt" id="nAlias" maxlength="20" placeholder="Alias for your role (optional, e.g. Moriarty)" aria-label="Alias (optional)" value="' + FY.UI.esc(st.alias || "") + '">' +
       '<button class="role" data-net="host"' + (ok ? "" : " disabled") + "><b>Host a game</b><span>You're the game master: share a code, hand out roles, and play Mr. X, a detective, or just referee.</span></button>" +
       '<div class="joinrow"><input id="nCode" maxlength="' + C.net.codeLength + '" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code"><button class="btn pri" data-net="join"' + (ok ? "" : " disabled") + ">Join game</button></div>" +
-      (hostSaved && hostSaved.entries && hostSaved.entries.length && !hostSaved.over ? '<button class="btn" data-net="resume">Resume hosting game ' + hostSaved.code + "</button>" : "") +
+      (hostSaved && hostSaved.code && !hostSaved.over ? '<button class="btn" data-net="resume">Resume hosting game ' + hostSaved.code + "</button>" : "") +
       (guestSaved && guestSaved.code ? '<button class="btn" data-net="rejoin">Rejoin game ' + guestSaved.code + "</button>" : "") +
       '<p class="note">' + (ok ? "Players connect directly to each other. If a friend can't connect, try the same Wi-Fi or turn off a VPN; the site owner can also add a TURN server in js/config.js." : "Online play couldn't load (check your connection and reload).") + "</p>";
     $("#onlineInner").innerHTML = h;
   }
   function nameValue() {
-    var v = ($("#nName") && $("#nName").value || "").trim().slice(0, 16);
-    if (v) S.saveSetting("name", v);
-    return v || "Player";
+    var v = cleanName($("#nName") && $("#nName").value, 16), a = cleanName($("#nAlias") && $("#nAlias").value, 20);
+    S.saveSetting("name", v); S.saveSetting("alias", a);
+    return v;
   }
   function startHosting(saved) {
     if (current) current.close();
-    var code = saved ? saved.code : genCode(), name = saved ? null : nameValue();
+    var code = saved ? saved.code : genCode(), name = saved ? null : nameValue() || "Game master";
     $("#onlineInner").innerHTML = '<p class="note">Opening game ' + code + "…</p>";
     hostSession(code, saved).then(function (sess) {
       current = sess;
-      if (name) sess.players.host.name = name;
+      S.set("resume", { kind: "host", code: code });
+      if (name) { sess.players.host.name = name; sess.players.host.alias = S.settings().alias || ""; }
       if (sess.state) onSessionChange(sess); else renderLobby();
     }, function (err) {
       if (err === "unavailable-id" && !saved) return startHosting(null);
@@ -740,9 +799,10 @@
   function joinGame(code, name) {
     if (current) current.close();
     $("#onlineInner").innerHTML = '<p class="note">Connecting to ' + code + "…</p>";
-    guestSession(code, name).then(function (sess) { current = sess; renderLobby(); });
+    guestSession(code, name).then(function (sess) { current = sess; S.set("resume", { kind: "guest", code: code }); renderLobby(); });
   }
 
+  var ui_edit = false;
   function renderLobby() {
     var sess = current;
     if (!sess || sess.state || $("#online").classList.contains("hidden")) return;
@@ -755,7 +815,8 @@
     h += '<div class="sect">Players</div><div class="plist">';
     Object.keys(info.players).forEach(function (id) {
       var p = info.players[id], r = info.roles[id] || "det";
-      h += '<div class="pl"><span class="who">' + FY.UI.esc(p.name) + (id === sess.myId ? " (you)" : "") + (id === "host" ? " · game master" : "") + "</span>" +
+      h += '<div class="pl"><span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
+        (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : "") +
         (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>');
       if (host) {
         h += '<div class="seg" style="flex-basis:100%">' + ["x", "det", "watch"].map(function (k) {
@@ -765,9 +826,17 @@
       h += "</div>";
     });
     h += "</div>";
+    if (ui_edit) {
+      var me = info.players[sess.myId] || { name: sess.name || "", alias: sess.alias || "" };
+      h += '<div class="pl" style="flex-direction:column;align-items:stretch"><input class="txt" id="eName" maxlength="16" placeholder="Your name" value="' + FY.UI.esc(me.name || "") + '">' +
+        '<input class="txt" id="eAlias" maxlength="20" placeholder="Alias for your role (optional)" value="' + FY.UI.esc(me.alias || "") + '">' +
+        '<div class="row"><button class="btn pri grow" data-net="saveme">Save</button><button class="btn grow" data-net="canceledit">Cancel</button></div></div>';
+    }
     var st = info.settings;
     if (host) {
-      h += '<label class="field"><span>Detectives on the board</span><div class="seg">' + [2, 3, 4, 5].map(function (n) { return '<button type="button" aria-checked="' + (st.nDet === n) + '" data-ndet="' + n + '">' + n + "</button>"; }).join("") + "</div></label>";
+      var counts = [];
+      for (var c = C.rules.minDetectivePawns; c <= C.rules.maxDetectivePawns; c++) counts.push(c);
+      h += '<label class="field"><span>Detectives on the board</span><div class="seg">' + counts.map(function (n) { return '<button type="button" aria-checked="' + (st.nDet === n) + '" data-ndet="' + n + '">' + n + "</button>"; }).join("") + "</div></label>";
       h += '<label class="field"><span>Referee</span><div class="seg">' +
         '<button type="button" aria-checked="' + (st.referee === "verified") + '" data-ref="verified"' + (subtle ? "" : " disabled") + ">Verified</button>" +
         '<button type="button" aria-checked="' + (st.referee === "trusted") + '" data-ref="trusted">Trusted game master</button></div></label>';
@@ -775,7 +844,7 @@
       h += '<label class="switch"><input type="checkbox" data-net="tactical"' + (st.tactical ? " checked" : "") + "><span>Allow tactical hints for everyone</span></label>";
       h += '<div class="row"><button class="btn grow" data-net="shuffle">Random Mr. X</button></div>';
       var prob = lobbyProblem(sess);
-      h += '<p class="note">' + (prob || "Ready. Detectives are shared out between detective players.") + "</p>";
+      h += '<p class="note">' + (prob || "Ready. Detective pieces are shared out between detective players." + (st.nDet > 5 ? " More than 5 detectives is a big-group variant: Mr. X gets a black ticket for each one." : "")) + "</p>";
       h += '<button class="btn pri big" data-net="start"' + (prob ? " disabled" : "") + ">Start game</button>";
     } else {
       h += '<p class="note">Referee: ' + (st.referee === "verified" ? "verified (no one can cheat unnoticed)" : "trusted game master (the game master can see Mr. X)") + (st.tactical ? "; tactical hints allowed" : "") + ".</p>";
@@ -791,7 +860,7 @@
     rows.forEach(function (r) {
       var lock = r.key === "mrx" && sess.settings.referee !== "trusted";
       h += '<div class="pl"><span class="who">' + r.label + "</span><select data-seat=\"" + r.key + '"' + (lock ? " disabled" : "") + ' aria-label="Who plays ' + r.label + '">' +
-        ids.map(function (id) { return '<option value="' + id + '"' + (id === r.id ? " selected" : "") + ">" + FY.UI.esc(sess.players[id].name) + (sess.players[id].online ? "" : " (offline)") + "</option>"; }).join("") + "</select></div>";
+        ids.map(function (id) { return '<option value="' + id + '"' + (id === r.id ? " selected" : "") + ">" + FY.UI.esc(labelOf(sess, id)) + (sess.players[id].online ? "" : " (offline)") + "</option>"; }).join("") + "</select></div>";
     });
     h += '</div><p class="note">' + (sess.settings.referee === "trusted" ? "" : "In verified games Mr. X can't be handed over: only his device knows where he is.") + '</p><button class="btn pri" data-act="close">Done</button>';
     FY.UI.overlay(h, function (card) {
@@ -803,9 +872,18 @@
       });
     });
   }
+  function profileDialog(sess) {
+    var me = (sess.roster || {})[sess.myId] || {};
+    FY.UI.overlay('<h2 class="disp">Your name</h2><p class="note">Everyone in the game will see the change.</p>' +
+      '<label class="field"><span>Name</span><input class="txt" id="pName" maxlength="16" value="' + FY.UI.esc(me.name || "") + '"></label>' +
+      '<label class="field"><span>Alias for your role <small class="note">(optional)</small></span><input class="txt" id="pAlias" maxlength="20" value="' + FY.UI.esc(me.alias || "") + '" placeholder="e.g. Moriarty or Inspector Holmes"></label>' +
+      '<div class="row"><button class="btn pri grow" id="pSave">Save</button><button class="btn grow" data-act="close">Cancel</button></div>', function (card) {
+      card.querySelector("#pSave").onclick = function () { setProfile(sess, card.querySelector("#pName").value, card.querySelector("#pAlias").value); FY.UI.closeLayers(); };
+    });
+  }
   function keysDialog(sess) {
     var ro = sess.roster || {}, h = '<h2 class="disp">Fingerprints</h2><p class="note">Each device signs its moves with its own key. Compare these out loud: if they match on every device, nobody can pretend to be someone else.</p><div class="plist">';
-    Object.keys(ro).forEach(function (id) { h += '<div class="pl"><span class="who">' + FY.UI.esc(ro[id].name) + (id === sess.myId ? " (you)" : "") + '</span><span class="rl">🔑 ' + (ro[id].fp || "–") + "</span></div>"; });
+    Object.keys(ro).forEach(function (id) { h += '<div class="pl"><span class="who">' + FY.UI.esc(labelOf(sess, id)) + (id === sess.myId ? " (you)" : "") + '</span><span class="rl">🔑 ' + (ro[id].fp || "–") + "</span></div>"; });
     FY.UI.overlay(h + '</div><button class="btn pri" data-act="close">Close</button>');
   }
 
@@ -823,6 +901,9 @@
     if (t.hasAttribute("data-ndet") && sess) { sess.settings.nDet = +t.getAttribute("data-ndet"); return broadcastLobby(sess); }
     if (t.hasAttribute("data-ref") && sess) { sess.settings.referee = t.getAttribute("data-ref"); return broadcastLobby(sess); }
     if (a === "back") { FY.UI.show("menu"); return; }
+    if (a === "editme") { ui_edit = true; return renderLobby(); }
+    if (a === "canceledit") { ui_edit = false; return renderLobby(); }
+    if (a === "saveme" && sess) { ui_edit = false; setProfile(sess, $("#eName").value, $("#eAlias").value); return renderLobby(); }
     if (a === "host") return startHosting(null);
     if (a === "resume") return startHosting(S.get("host", null));
     if (a === "join") {
@@ -831,7 +912,7 @@
       return joinGame(code, nameValue());
     }
     if (a === "rejoin") { var g = S.get("guest", null); return joinGame(g.code, g.name || nameValue()); }
-    if (a === "leave") { if (sess) sess.close(); current = null; if (sess && sess.role === "host") S.set("host", null); return openHome(); }
+    if (a === "leave") { if (sess) sess.close(); current = null; S.set("resume", null); if (sess && sess.role === "host") S.set("host", null); return openHome(); }
     if (a === "share" && sess) {
       var txt = "Join my Fog Yard game with code " + sess.code;
       var url = location.href.split("?")[0].split("#")[0];
@@ -854,6 +935,20 @@
   });
 
   FY.Net = {
+    // Called at start-up after a refresh: rejoin or resume the game this device was in.
+    autoResume: function (r) {
+      if (r.kind === "host") {
+        var saved = S.get("host", null);
+        if (!saved || saved.code !== r.code || saved.over) return S.set("resume", null);
+        FY.UI.show("online");
+        startHosting(saved);
+      } else {
+        var g = S.get("guest", null);
+        if (!g || g.code !== r.code) return S.set("resume", null);
+        FY.UI.show("online");
+        joinGame(g.code, g.name || "Player");
+      }
+    },
     open: function () {
       if (current && !current.closed) { if (current.state && current.ctl) FY.UI.enterGame(current.ctl); else renderLobby(); return; }
       openHome();
