@@ -344,3 +344,9 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 - **Hosting badge.** Free Netlify sites show a floating "Powered by Netlify" badge that covered the Log tab. The game now checks whether anything not its own covers the tab bar, and if so lifts the bar clear (`body.overlay-room`). The badge itself can be turned off in Netlify under Project configuration → General → Powered by Netlify badge.
 - **"Spinner" on the map.** The selected piece's ring spun with `rotate()`, which on SVG turns around the map's centre, so the ring swung across the map. It now uses marching dashes and stays on the piece.
 - **Inherited CI removed.** The original project's GitHub workflow, which pushed to the upstream author's repository, was deleted.
+
+## Initials on the map, computer detectives online, sturdier badge handling
+
+- **Initials.** Online, detective pieces show their player's initials instead of D1, D2: "David" becomes "Da", "Paul David" becomes "PD", using the alias if one is set. Clashes, or one player with several pieces, get a number ("Jo1", "Jo2"). Solo games and computer-played pieces keep D1…D7. Lists and logs still say "D2 · David".
+- **Mixed human and computer detectives.** When there are more pieces than detective players, the game master chooses *Shared by players* (classic) or *Played by the computer*. Each player then keeps one piece, and the game master's device plays the rest. Tested with 2 human and 3 computer detectives; the audit passes.
+- **Badge detection.** The game looks for any top-level fixed, sticky or absolute element that isn't its own and overlaps the tab bar. Hit-testing alone missed badges with `pointer-events: none`. It re-checks when such elements are added, and lifts the bar by exactly the covered height.

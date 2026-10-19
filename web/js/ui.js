@@ -23,6 +23,9 @@
   // xLabel() / detLabel() with the player's name ("Moriarty (Flora)", "D2 · Holmes (Sam)").
   function XN() { return ctl && ctl.xShort ? ctl.xShort() : "Mr. X"; }
   function xLabel() { return ctl && ctl.xLabel ? ctl.xLabel() : "Mr. X"; }
+  // What a detective's piece shows on the map: the player's initials online ("Da", "PD"),
+  // D1, D2… in solo games or for computer-played pieces.
+  function pieceLabel(i) { return (ctl && ctl.pieceInitials && ctl.pieceInitials(i)) || detName(i); }
   function detLabel(i) { var o = ctl && ctl.detOwnerLabel ? ctl.detOwnerLabel(i) : ""; return detName(i) + (o ? " · " + o : ""); }
   function wide() { return window.matchMedia("(min-width: 900px)").matches; }
 
@@ -304,14 +307,14 @@
     var mine = ctl.myTurnDets();
     if (ui.replay) {
       var f = ui.replay.frames[ui.replay.k];
-      f.dets.forEach(function (p, j) { out.push({ id: "d" + j, n: p, label: detName(j), color: DCOL[j % DCOL.length] }); });
+      f.dets.forEach(function (p, j) { out.push({ id: "d" + j, n: p, label: pieceLabel(j), color: DCOL[j % DCOL.length] }); });
       if (f.x) out.push({ id: "x", n: f.x, label: "X", color: "#111", ring: "#e0b341", text: "#e0b341" });
       return out;
     }
     var xv = xVisible();
     if (!xv && s.last && ctl.view !== "x") out.push({ id: "xg", n: s.last.pos, label: "X", color: "#555", ring: "#e0b341", text: "#e0b341", ghost: true, tag: "seen " + s.last.move });
     for (i = 0; i < s.dets.length; i++) {
-      out.push({ id: "d" + i, n: s.dets[i].pos, label: detName(i), color: DCOL[i % DCOL.length], halo: i === ui.sel && mine.indexOf(i) >= 0, tag: String(s.dets[i].pos) });
+      out.push({ id: "d" + i, n: s.dets[i].pos, label: pieceLabel(i), color: DCOL[i % DCOL.length], halo: i === ui.sel && mine.indexOf(i) >= 0, tag: String(s.dets[i].pos) });
     }
     if (xv) out.push({ id: "x", n: xv, label: "X", color: "#111", ring: "#e0b341", text: "#e0b341", tag: String(xv) });
     return out;
@@ -808,9 +811,23 @@
   // If something that isn't ours covers a tab, lift the bar clear of it.
   function checkOverlay() {
     if ($("#game").classList.contains("hidden")) return;
-    var bar = $("#tabs"), covered = false;
+    var bar = $("#tabs"), ours = { menu: 1, setup: 1, online: 1, game: 1, sheet: 1, overlay: 1 };
     document.body.classList.remove("overlay-room");
-    [].forEach.call(bar.querySelectorAll("button"), function (b) {
+    var br = bar.getBoundingClientRect(), covered = false, room = 66;
+    // 1) Any fixed or sticky element that isn't ours and overlaps the bar (badges are usually
+    //    top-level, often with pointer-events off, so hit-testing alone can miss them).
+    [].forEach.call(document.querySelectorAll("body > *, html > *:not(head):not(body)"), function (el) {
+      if (ours[el.id] || el.tagName === "SCRIPT" || el.tagName === "STYLE" || el.tagName === "LINK") return;
+      var cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0) return;
+      var r = el.getBoundingClientRect();
+      if (r.width && r.height && r.left < br.right && r.right > br.left && r.top < br.bottom && r.bottom > br.top && (cs.position === "fixed" || cs.position === "sticky" || cs.position === "absolute")) {
+        covered = true;
+        room = Math.max(room, Math.min(160, Math.ceil(window.innerHeight - r.top + 8))); // lift the bar just above it
+      }
+    });
+    // 2) Hit-testing, for anything nested elsewhere.
+    if (!covered) [].forEach.call(bar.querySelectorAll("button"), function (b) {
       var r = b.getBoundingClientRect();
       if (!r.width) return;
       [[0.5, 0.5], [0.85, 0.5], [0.5, 0.85]].forEach(function (f) {
@@ -818,7 +835,15 @@
         if (el && !bar.contains(el) && !$("#toast").contains(el) && !$("#sheet").contains(el) && !$("#overlay").contains(el)) covered = true;
       });
     });
+    document.body.style.setProperty("--overlay-room", room + "px");
     document.body.classList.toggle("overlay-room", covered);
+  }
+  // Re-check whenever something is added to the page (badges are often injected late).
+  if (window.MutationObserver) {
+    var watchTop = new MutationObserver(function () { setTimeout(checkOverlay, 50); });
+    watchTop.observe(document.documentElement, { childList: true });
+    document.addEventListener("DOMContentLoaded", function () { watchTop.observe(document.body, { childList: true }); });
+    if (document.body) watchTop.observe(document.body, { childList: true });
   }
   window.addEventListener("resize", function () { setTimeout(checkOverlay, 100); });
 

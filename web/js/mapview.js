@@ -265,6 +265,7 @@
         if (t.halo) el("circle", { r: 21, "class": "tokhalo" }, g);
         el("circle", { r: 15, fill: t.color, stroke: t.ring || "#fff", "stroke-width": 3, "stroke-dasharray": t.ghost ? "4 3" : "none" }, g);
         var tx = el("text", { "class": "tokt", fill: t.text || "#fff" }, g);
+        if (String(t.label).length > 2) tx.setAttribute("font-size", "9");
         tx.textContent = t.label;
         if (t.tag) {
           var w = String(t.tag).length * 5.6 + 8;

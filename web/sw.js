@@ -3,7 +3,7 @@
    Online games still need internet for the PeerJS server.
    VERSION and FILES are written by tools/package.py; a new deploy brings a new VERSION, which
    replaces the old cache. */
-var VERSION = "fy-1385f1ba2da7";
+var VERSION = "fy-8c2bb9af24aa";
 var FILES = /*FILES*/["./", "assets/icon-192.png", "assets/icon-512.png", "assets/icon.svg", "assets/map.jpg", "css/app.css", "css/map.css", "data/board.js", "index.html", "js/ai.js", "js/board.js", "js/config.js", "js/game.js", "js/mapview.js", "js/net.js", "js/rules.js", "js/scene.js", "js/store.js", "js/terrain.js", "js/ui.js", "manifest.webmanifest"]/*END*/;
 var CDN = [
   "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",
