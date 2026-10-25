@@ -294,26 +294,30 @@
       if (g._key !== key) {
         self.clear(g); g._key = key;
         g.setAttribute("class", "tok" + (t.ghost ? " ghost" : ""));
-        if (t.halo) el("circle", { r: 21, "class": "tokhalo" }, g);
-        el("circle", { r: 15, fill: t.color, stroke: t.ring || "#fff", "stroke-width": 3, "stroke-dasharray": t.ghost ? "4 3" : "none" }, g);
+        if (t.halo) el("circle", { r: t.photo ? 24 : 21, "class": "tokhalo" }, g);
         if (t.photo) {
-          // The player's photo inside the ring; a player with several pieces keeps the piece number.
-          el("image", { href: t.photo, x: -13.5, y: -13.5, width: 27, height: 27, preserveAspectRatio: "xMidYMid slice", "clip-path": "url(#" + self.photoClip() + ")" }, g);
+          // A photo piece is a little bigger and wears a thick ring in the detective's colour
+          // (white edge outside, for contrast on the map), so each detective stays recognisable.
+          el("circle", { r: 19.5, fill: "#fff" }, g);
+          el("circle", { r: 17, fill: t.color }, g);
+          el("image", { href: t.photo, x: -13, y: -13, width: 26, height: 26, preserveAspectRatio: "xMidYMid slice", "clip-path": "url(#" + self.photoClip() + ")" }, g);
+          // A player with several pieces keeps the piece number.
           var num = /\d+$/.exec(String(t.label));
           if (num) {
-            el("circle", { cx: 11, cy: -11, r: 6.5, fill: t.color, stroke: "#fff", "stroke-width": 1.5 }, g);
-            var nt = el("text", { x: 11, y: -11, "class": "tokt", fill: "#fff", "font-size": "8" }, g);
+            el("circle", { cx: 13, cy: -13, r: 7, fill: t.color, stroke: "#fff", "stroke-width": 1.5 }, g);
+            var nt = el("text", { x: 13, y: -13, "class": "tokt", fill: "#fff", "font-size": "8.5" }, g);
             nt.textContent = num[0];
           }
         } else {
+          el("circle", { r: 15, fill: t.color, stroke: t.ring || "#fff", "stroke-width": 3, "stroke-dasharray": t.ghost ? "4 3" : "none" }, g);
           var tx = el("text", { "class": "tokt", fill: t.text || "#fff" }, g);
           if (String(t.label).length > 2) tx.setAttribute("font-size", "9");
           tx.textContent = t.label;
         }
         if (t.tag) {
-          var w = String(t.tag).length * 5.6 + 8;
-          el("rect", { x: -w / 2, y: 17, width: w, height: 12, rx: 6, "class": "toktagbg" }, g);
-          var tg = el("text", { y: 23.5, "class": "toktag" }, g);
+          var w = String(t.tag).length * 5.6 + 8, ty = t.photo ? 20 : 17;
+          el("rect", { x: -w / 2, y: ty, width: w, height: 12, rx: 6, "class": "toktagbg" }, g);
+          var tg = el("text", { y: ty + 6.5, "class": "toktag" }, g);
           tg.textContent = t.tag;
         }
       }
@@ -332,7 +336,7 @@
     if (!this._clipId) {
       this._clipId = "fyPhotoClip" + (++clipSeq);
       var cp = el("clipPath", { id: this._clipId }, el("defs", {}, this.svg));
-      el("circle", { r: 13.5 }, cp);
+      el("circle", { r: 13 }, cp);
     }
     return this._clipId;
   };

@@ -227,7 +227,9 @@ table.stats th:first-child, table.stats td:first-child { text-align: left; }
 /* Player photos and initials badges */
 .av { width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; overflow: hidden; color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .02em; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
 .av.lg { width: 52px; height: 52px; font-size: 18px; }
-.av img, .pdot img, .chip .dot img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+/* Photos sit inside a ring of the badge's own colour, so each detective stays recognisable. */
+.av img, .pdot img, .chip .dot img { width: calc(100% - 6px); height: calc(100% - 6px); object-fit: cover; border-radius: 50%; display: block; }
+.chip .dot img { width: calc(100% - 4px); height: calc(100% - 4px); }
 .piece .pdot, .chip .dot { overflow: hidden; }
 .photorow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
 .photorow label.btn { cursor: pointer; }

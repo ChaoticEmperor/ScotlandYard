@@ -9,7 +9,7 @@
     taxi: { n: "Taxi", s: "T" }, bus: { n: "Bus", s: "B" }, underground: { n: "Underground", s: "U" },
     black: { n: "Black", s: "?" }, double: { n: "Double", s: "2×" }, ferry: { n: "Ferry", s: "F" }
   };
-  var DCOL = ["#2563eb", "#db2777", "#7c3aed", "#ea580c", "#0e7490", "#a16207", "#475569"];
+  var DCOL = ["#2563eb", "#db2777", "#7c3aed", "#ea580c", "#0e7490", "#a16207", "#475569", "#15803d", "#9f1239", "#1e3a8a"];
   var KIND = { taxi: "Taxi stop", bus: "Bus stop", underground: "Underground" };
 
   var board, scene, bg = null, mv = null, mini = null, ctl = null;

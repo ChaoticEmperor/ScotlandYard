@@ -106,7 +106,7 @@ const tally = { x: 0, det: 0 }, reasons = {}, byDet = {};
 let totalMoves = 0;
 for (let g = 0; g < games; g++) {
   const rand = seeded(1000 + g);
-  const nDet = 2 + (g % 6);
+  const nDet = CONFIG.rules.minDetectivePawns + (g % (CONFIG.rules.maxDetectivePawns - CONFIG.rules.minDetectivePawns + 1));
   const rules = R.makeRules(CONFIG.rules, nDet);
   const { start, secret } = R.setup(board, rules, rand);
   const s = R.init(board, start);

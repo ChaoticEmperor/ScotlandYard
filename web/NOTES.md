@@ -367,8 +367,16 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 
 - **Photo or initials.** Each player can add a photo on their own device: on the *Play online* screen, from *Edit* in the lobby, or mid-game from the game menu (*Change my name, alias or photo*). Their detective pieces on the map, the piece cards and the lobby list then show the photo. Without a photo they show the player's initials in the piece's coloured badge ("Paul Davidson" → "PD", "Sam" → "Sa", alias if one is set). One player with several pieces keeps the piece number: "PD1", or a small number on the photo.
 - **Camera or gallery.** On phones the picker has two buttons: *Take photo* (`capture="user"`, opens the front camera) and *Choose photo* (the gallery or files). Android's newer photo picker shows only the gallery for a plain image field, so the camera needs its own button. Desktops show only *Choose photo*.
+- **Colour ring.** A photo would hide the piece's colour, so photo pieces are drawn a little bigger with a thick ring in the detective's colour and a white outer edge for contrast on the map. Badges in the piece cards, the detective picker and the lobby show the same coloured ring around the photo.
 - **Small and local.** The picture is cropped to a centred square and shrunk on the phone to a 96 px JPEG (a few KB, capped at `FY.CONFIG.net.photoMaxChars`) before it is saved or sent. Nothing is uploaded to a server.
 - **Outside the signed log.** Photos are decoration, so they never enter the signed game log. The game master keeps them with the player list and sends a `photos` message to every device when one is added, changed or removed, and to each device that (re)joins. Every device only accepts small `data:image/jpeg|png|webp` values. Changing only a photo mid-game doesn't write a rename entry.
 - **Solo games and computer pieces** keep D1, D2…, since one person plays every piece.
 
 Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo through the lobby's file picker and checks it on the other devices' lobby and map.
+
+## Up to 10 detectives
+
+- **Limits.** Up to 10 detective pieces (`maxDetectivePawns: 10`), so up to 11 people with a role (Mr. X plus 10 detectives) and 14 in a lobby, the extras watching. Solo games offer 2 to 10 detectives too. The board has 16 detective start stations, so every piece still gets its own start card.
+- **Colours.** Pieces 8 to 10 got their own colours (green, crimson, navy), so no two pieces share a colour.
+- **Balance.** Mr. X still gets one black ticket per detective. In the AI-vs-AI games in `tests/test.mjs` (normal level), the detectives win about 30% with 5 pieces and roughly 55-65% with 8 to 10. Very big groups favour the detectives, which suits a party game; a strong human Mr. X does better than the AI.
+- **Tested.** `FY_PLAYERS=11 node tests/online-smoke.cjs` plays an 11-device game, one detective per device (`FY_PLAYERS` takes 3 to 11).

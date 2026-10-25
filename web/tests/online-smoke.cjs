@@ -134,33 +134,33 @@ function serve() {
     for (const p of [h, a, b]) await p.close();
   }
 
-  // An 8-player game: Mr. X plus seven detectives, each on their own device.
-  async function bigGame() {
-    const names = ["h", "a", "b", "c", "d", "e", "f", "g"], pages = {};
-    for (const n of names) pages[n] = await open(n);
+  // A big game: Mr. X plus FY_PLAYERS - 1 detectives (up to 10), each on their own device.
+  async function bigGame(n) {
+    const names = ["h", "a", "b", "c", "d", "e", "f", "g", "i", "j", "k"].slice(0, n), pages = {}, d = n - 1, tag = n + " players";
+    for (const k of names) pages[k] = await open(k);
     const h = pages.h;
     await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
     const code = (await h.textContent(".codebig")).trim();
-    for (const n of names.slice(1)) { const g = pages[n]; await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); await h.waitForTimeout(150); }
-    await h.waitForFunction(() => document.querySelectorAll(".pl").length === 8, null, { timeout: 20000 });
+    for (const k of names.slice(1)) { const g = pages[k]; await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); await h.waitForTimeout(150); }
+    await h.waitForFunction(() => (want) => document.querySelectorAll(".pl").length === want, n, { timeout: 20000 });
     await pages.a.click("[data-net=editme]"); await pages.a.fill("#eAlias", "Moriarty"); await pages.a.click("[data-net=saveme]");
     const guestIds = (await h.evaluate(() => Object.keys(FY.Net.session.players))).filter((id) => id !== "host");
     await h.click('[data-role="x"][data-pid="' + guestIds[0] + '"]');
     await h.click('[data-role="det"][data-pid="host"]');
-    await h.waitForFunction(() => FY.Net.session.settings.nDet === 7, null, { timeout: 5000 }).catch(() => errors.push("8 players: lobby did not raise the detectives to 7"));
-    if (out) await h.screenshot({ path: path.join(out, "lobby-8.png"), fullPage: true });
+    await h.waitForFunction((want) => FY.Net.session.settings.nDet === want, d, { timeout: 5000 }).catch(() => errors.push(tag + ": lobby did not raise the detectives to " + d));
+    if (out) await h.screenshot({ path: path.join(out, "lobby-" + n + ".png"), fullPage: true });
     await h.click("[data-net=start]");
-    for (const n of names) await pages[n].waitForSelector("#game:not(.hidden)", { timeout: 20000 });
+    for (const k of names) await pages[k].waitForSelector("#game:not(.hidden)", { timeout: 20000 });
     const done = await playUntilOver(pages, {});
     await h.waitForTimeout(1000);
     const res = [];
-    for (const n of names) res.push(await pages[n].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
-    console.log("8-player game:", done ? "finished" : "DID NOT FINISH", JSON.stringify(res[0]));
-    if (new Set(res.map((r) => r.entries)).size !== 1) errors.push("8 players: devices disagree on the log");
-    res.forEach((r, k) => { if (r.problem || r.audit !== true || r.over !== "over") errors.push("8 players, " + names[k] + ": " + JSON.stringify(r)); });
-    if (res[0].dets !== 7 || res.filter((r) => r.mine === 1).length !== 7) errors.push("8 players: expected 7 detectives, one each");
-    if (out) await pages.c.screenshot({ path: path.join(out, "online-8-c.png") });
-    for (const n of names) await pages[n].close();
+    for (const k of names) res.push(await pages[k].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
+    console.log(tag + " game:", done ? "finished" : "DID NOT FINISH", JSON.stringify(res[0]));
+    if (new Set(res.map((r) => r.entries)).size !== 1) errors.push(tag + ": devices disagree on the log");
+    res.forEach((r, k) => { if (r.problem || r.audit !== true || r.over !== "over") errors.push(tag + ", " + names[k] + ": " + JSON.stringify(r)); });
+    if (res[0].dets !== d || res.filter((r) => r.mine === 1).length !== d) errors.push(tag + ": expected " + d + " detectives, one each");
+    if (out) await pages.c.screenshot({ path: path.join(out, "online-" + n + "-c.png") });
+    for (const k of names) await pages[k].close();
   }
 
   // The game master only watches: sees Mr. X, removes a detective (the computer takes over),
@@ -270,7 +270,7 @@ function serve() {
     for (const p of [h, a, b]) await p.close();
   }
 
-  if (process.env.FY_PLAYERS === "8") await bigGame();
+  if (process.env.FY_PLAYERS) await bigGame(Math.min(11, Math.max(3, Number(process.env.FY_PLAYERS))));
   else if (process.env.FY_GM) { await gmGame(); await removeXGame(); await mixedGame(); }
   else if (peer) await game("verified", "a", { reloadGuest: true });
   else {
