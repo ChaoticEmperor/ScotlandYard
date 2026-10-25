@@ -44,7 +44,11 @@
       // only shown as away after this long (any message brings them straight back).
       awayAfterMs: 30000,
       reconnectGiveUpMs: 120000,
-      defaultReferee: "verified" // "verified" or "trusted"
+      defaultReferee: "verified", // "verified" or "trusted"
+      // Player photos are shrunk on the device to a small square JPEG before they are sent.
+      photoSize: 96,
+      photoMaxChars: 24000
+
     },
 
     storagePrefix: "fogyard."

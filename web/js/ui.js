@@ -28,7 +28,94 @@
   // What a detective's piece shows on the map: the player's initials online ("Da", "PD"),
   // D1, D2… in solo games or for computer-played pieces.
   function pieceLabel(i) { return (ctl && ctl.pieceInitials && ctl.pieceInitials(i)) || "D" + (i + 1); }
+  // Photo shown on a detective's piece online, if its player added one.
+  function piecePhoto(i) { return (ctl && ctl.piecePhoto && ctl.piecePhoto(i)) || ""; }
   function detLabel(i) { return (ctl && ctl.pieceFullName && ctl.pieceFullName(i)) || detName(i); }
+  // ---------- player photos and initials badges ----------
+  // "David" -> "Da", "Paul Davidson" -> "PD".
+  function initials(name) {
+    var words = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "";
+    if (words.length > 1) return (Array.from(words[0])[0] + Array.from(words[1])[0]).toUpperCase();
+    var w = Array.from(words[0]);
+    return w.length > 1 ? w[0].toUpperCase() + w[1].toLowerCase() : w[0].toUpperCase();
+  }
+  // Photos travel between phones, so only small inline images are accepted.
+  function photoOk(v) {
+    return typeof v === "string" && v.length <= C.net.photoMaxChars && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(v);
+  }
+  // Shrinks a picked image to a centred square JPEG of C.net.photoSize pixels (a few KB).
+  // Resolves "" if the file can't be read as an image.
+  function readPhoto(file) {
+    return new Promise(function (resolve) {
+      if (!file || !/^image\//.test(file.type || "")) return resolve("");
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var n = C.net.photoSize, w = img.naturalWidth, h = img.naturalHeight, side = Math.min(w, h);
+        var cv = document.createElement("canvas");
+        cv.width = cv.height = n;
+        var g = cv.getContext("2d");
+        g.fillStyle = "#fff"; g.fillRect(0, 0, n, n);
+        g.drawImage(img, (w - side) / 2, (h - side) / 2, side, side, 0, 0, n, n);
+        URL.revokeObjectURL(url);
+        var q = 0.85, d = cv.toDataURL("image/jpeg", q);
+        while (d.length > C.net.photoMaxChars && q > 0.35) { q -= 0.15; d = cv.toDataURL("image/jpeg", q); }
+        resolve(photoOk(d) ? d : "");
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(""); };
+      img.src = url;
+    });
+  }
+  // A round badge: the player's photo, or their initials on a coloured disc.
+  function avatar(name, photo, color, cls) {
+    var c = "av" + (cls ? " " + cls : ""), bgc = ' style="background:' + (color || "#475569") + '"';
+    if (photoOk(photo)) return '<span class="' + c + '"' + bgc + '><img src="' + esc(photo) + '" alt=""></span>';
+    return '<span class="' + c + '"' + bgc + ' aria-hidden="true">' + esc(initials(name) || "?") + "</span>";
+  }
+  // A photo picker for forms: the badge preview, "Add photo" / "Change photo" and "Remove".
+  // The chosen photo is kept in data-photo; read it back with photoValue(container).
+  function photoField(photo, name) {
+    var p = photoOk(photo) ? photo : "";
+    return '<div class="photorow" data-photo-field data-name="' + esc(name || "") + '" data-photo="' + esc(p) + '">' + photoFieldInner(p, name) + "</div>";
+  }
+  function photoFieldInner(p, name) {
+    return avatar(name, p, DCOL[0], "lg") +
+      '<label class="btn sm">' + (p ? "Change photo" : "Add photo") + '<input type="file" accept="image/*" class="hidden" data-photo-input aria-label="Your photo"></label>' +
+      (p ? '<button type="button" class="btn sm" data-photo-clear>Remove photo</button>' : '<span class="note">Optional. Otherwise your initials are shown.</span>');
+  }
+  function setPhotoField(row, p, name) {
+    if (p != null) row.setAttribute("data-photo", p);
+    if (name != null) row.setAttribute("data-name", name);
+    row.innerHTML = photoFieldInner(row.getAttribute("data-photo") || "", row.getAttribute("data-name") || "");
+  }
+  // The photo chosen in a form inside root: a data URL, "" for none, or null if root has no picker.
+  function photoValue(root) {
+    var row = root && root.querySelector("[data-photo-field]");
+    if (!row) return null;
+    var p = row.getAttribute("data-photo") || "";
+    return photoOk(p) ? p : "";
+  }
+  document.addEventListener("change", function (e) {
+    var t = e.target;
+    if (!t.hasAttribute || !t.hasAttribute("data-photo-input")) return;
+    var row = t.closest("[data-photo-field]");
+    readPhoto(t.files && t.files[0]).then(function (d) {
+      if (d) setPhotoField(row, d);
+      else toast("Photo", "That picture couldn't be used. Try a JPEG or PNG.");
+    });
+  });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("[data-photo-clear]");
+    if (t) setPhotoField(t.closest("[data-photo-field]"), "");
+  });
+  // Keep the initials preview in step with the name being typed.
+  document.addEventListener("input", function (e) {
+    var t = e.target;
+    if (!/^(nName|eName|pName)$/.test(t.id || "")) return;
+    var box = t.closest("#onlineInner, #overlayCard"), row = box && box.querySelector("[data-photo-field]");
+    if (row) setPhotoField(row, null, t.value);
+  });
+
   function wide() { return window.matchMedia("(min-width: 900px)").matches; }
 
   // ---------- theme ----------
@@ -332,14 +419,14 @@
     var mine = ctl.myTurnDets();
     if (ui.replay) {
       var f = ui.replay.frames[ui.replay.k];
-      f.dets.forEach(function (p, j) { out.push({ id: "d" + j, n: p, label: pieceLabel(j), color: DCOL[j % DCOL.length] }); });
+      f.dets.forEach(function (p, j) { out.push({ id: "d" + j, n: p, label: pieceLabel(j), photo: piecePhoto(j), color: DCOL[j % DCOL.length] }); });
       if (f.x) out.push({ id: "x", n: f.x, label: "X", color: "#111", ring: "#e0b341", text: "#e0b341" });
       return out;
     }
     var xv = xVisible();
     if (!xv && s.last && ctl.view !== "x") out.push({ id: "xg", n: s.last.pos, label: "X", color: "#555", ring: "#e0b341", text: "#e0b341", ghost: true, tag: "seen " + s.last.move });
     for (i = 0; i < s.dets.length; i++) {
-      out.push({ id: "d" + i, n: s.dets[i].pos, label: pieceLabel(i), color: DCOL[i % DCOL.length], halo: i === ui.sel && mine.indexOf(i) >= 0, tag: String(s.dets[i].pos) });
+      out.push({ id: "d" + i, n: s.dets[i].pos, label: pieceLabel(i), photo: piecePhoto(i), color: DCOL[i % DCOL.length], halo: i === ui.sel && mine.indexOf(i) >= 0, tag: String(s.dets[i].pos) });
     }
     if (xv) out.push({ id: "x", n: xv, label: "X", color: "#111", ring: "#e0b341", text: "#e0b341", tag: String(xv) });
     return out;
@@ -431,13 +518,21 @@
     return h + "</div>";
   }
 
+  // Inside a detective's coloured dot: the player's photo online, else their initials ("PD"),
+  // else (solo games, computer pieces) the piece number.
+  function dotInner(i) {
+    var p = piecePhoto(i), l = ctl && ctl.pieceInitials ? ctl.pieceInitials(i) : "";
+    if (photoOk(p)) return '<img src="' + esc(p) + '" alt="">';
+    return l ? esc(l.replace(/\d+$/, "")) : String(i + 1);
+  }
+
   // Compact detective picker shown above the move cards.
   function pickerRow() {
     var s = ctl.s, mine = ctl.myDets, can = ctl.myTurnDets(), h = '<div class="chips" role="group" aria-label="Choose a detective">';
     mine.forEach(function (i) {
       var moved = s.moved[i], ok = can.indexOf(i) >= 0;
       h += '<button class="chip' + (i === ui.sel && ok ? " sel" : "") + (moved ? " done" : ok ? "" : " stuck") + '" data-det="' + i + '"' + (ok ? "" : " disabled") + ">" +
-        '<span class="dot" style="background:' + DCOL[i % DCOL.length] + '">' + (i + 1) + "</span>" + s.dets[i].pos + (moved ? " ✓" : "") + "</button>";
+        '<span class="dot" style="background:' + DCOL[i % DCOL.length] + '">' + dotInner(i) + "</span>" + s.dets[i].pos + (moved ? " ✓" : "") + "</button>";
     });
     return h + "</div>";
   }
@@ -452,7 +547,7 @@
       var count = seat && seat !== "ai" ? ctl.sess.seats.pawns.filter(function (id) { return id === seat; }).length : 1;
       if (count > 1) owner = (owner ? owner + " · " : "") + count + " pieces";
       h += '<button class="piece' + (i === ui.sel && can ? " sel" : "") + (moved ? " done" : "") + '" data-det="' + i + '"' + (can ? "" : " disabled") + ">" +
-        '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + (i + 1) + "</span>" + esc(detName(i)) + " · " + d.pos +
+        '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + dotInner(i) + "</span>" + esc(detName(i)) + " · " + d.pos +
         (moved ? " ✓" : "") + "</span>" + (owner ? '<span class="own">' + esc(owner) + "</span>" : "") +
         '<span class="tks"><span>' + tkDot("taxi") + " " + d.t.taxi + "</span><span>" + tkDot("bus") + " " + d.t.bus + "</span><span>" + tkDot("underground") + " " + d.t.underground + "</span></span></button>";
     });
@@ -545,7 +640,7 @@
     if (p.det != null) {
       var d = s.dets[p.det], own = detLabel(p.det);
       var moved = (s.pending === "det" || s.pending === "probe") && s.moved[p.det];
-      return '<div class="pl"><span class="pdot" style="background:' + DCOL[p.det % DCOL.length] + ';width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800">' + (p.det + 1) + "</span>" +
+      return '<div class="pl"><span class="pdot" style="background:' + DCOL[p.det % DCOL.length] + ';width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;overflow:hidden">' + dotInner(p.det) + "</span>" +
         '<span class="who">' + esc(own) + (moved ? " · moved" : "") + "</span>" +
         '<span class="chips"><span class="chip">' + tkDot("taxi") + d.t.taxi + '</span><span class="chip">' + tkDot("bus") + d.t.bus + '</span><span class="chip">' + tkDot("underground") + d.t.underground + "</span></span></div>";
     }
@@ -887,7 +982,7 @@
 
   FY.UI = {
     enterGame: enterGame, render: render, toast: toast, overlay: overlay, closeLayers: closeLayers, show: show,
-    toMenu: toMenu, esc: esc, get board() { return board; }, get controller() { return ctl; }, DCOL: DCOL
+    toMenu: toMenu, esc: esc, initials: initials, avatar: avatar, photoOk: photoOk, readPhoto: readPhoto, photoField: photoField, photoValue: photoValue, get board() { return board; }, get controller() { return ctl; }, DCOL: DCOL
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

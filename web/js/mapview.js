@@ -282,13 +282,13 @@
     this._trailT = setTimeout(function () { self.clear(self.trailHi); }, 3200);
   };
   MapView.prototype.setTokens = function (tokens) {
-    // tokens: [{id, n, label, color, ring, text, ghost, halo, tag}]; kept by id so moves glide.
+    // tokens: [{id, n, label, photo, color, ring, text, ghost, halo, tag}]; kept by id so moves glide.
     var self = this, keep = {};
     this.toks = this.toks || {};
     tokens.forEach(function (t) {
       if (!t.n) return;
       keep[t.id] = 1;
-      var p = self.b.pos[t.n], key = JSON.stringify([t.label, t.color, t.ring, t.text, t.ghost, t.halo, t.tag]);
+      var p = self.b.pos[t.n], key = JSON.stringify([t.label, t.photo, t.color, t.ring, t.text, t.ghost, t.halo, t.tag]);
       var g = self.toks[t.id];
       if (!g) { g = self.toks[t.id] = el("g", { "class": "tok" }, self.tokLayer); g.setAttribute("transform", "translate(" + p.x + " " + p.y + ")"); }
       if (g._key !== key) {
@@ -296,9 +296,20 @@
         g.setAttribute("class", "tok" + (t.ghost ? " ghost" : ""));
         if (t.halo) el("circle", { r: 21, "class": "tokhalo" }, g);
         el("circle", { r: 15, fill: t.color, stroke: t.ring || "#fff", "stroke-width": 3, "stroke-dasharray": t.ghost ? "4 3" : "none" }, g);
-        var tx = el("text", { "class": "tokt", fill: t.text || "#fff" }, g);
-        if (String(t.label).length > 2) tx.setAttribute("font-size", "9");
-        tx.textContent = t.label;
+        if (t.photo) {
+          // The player's photo inside the ring; a player with several pieces keeps the piece number.
+          el("image", { href: t.photo, x: -13.5, y: -13.5, width: 27, height: 27, preserveAspectRatio: "xMidYMid slice", "clip-path": "url(#" + self.photoClip() + ")" }, g);
+          var num = /\d+$/.exec(String(t.label));
+          if (num) {
+            el("circle", { cx: 11, cy: -11, r: 6.5, fill: t.color, stroke: "#fff", "stroke-width": 1.5 }, g);
+            var nt = el("text", { x: 11, y: -11, "class": "tokt", fill: "#fff", "font-size": "8" }, g);
+            nt.textContent = num[0];
+          }
+        } else {
+          var tx = el("text", { "class": "tokt", fill: t.text || "#fff" }, g);
+          if (String(t.label).length > 2) tx.setAttribute("font-size", "9");
+          tx.textContent = t.label;
+        }
         if (t.tag) {
           var w = String(t.tag).length * 5.6 + 8;
           el("rect", { x: -w / 2, y: 17, width: w, height: 12, rx: 6, "class": "toktagbg" }, g);
@@ -313,6 +324,17 @@
     Object.keys(this.toks).forEach(function (id) {
       if (!keep[id]) { self.tokLayer.removeChild(self.toks[id]); delete self.toks[id]; }
     });
+  };
+
+  // One circular clip for photo pieces, per map (ids must be unique on the page).
+  var clipSeq = 0;
+  MapView.prototype.photoClip = function () {
+    if (!this._clipId) {
+      this._clipId = "fyPhotoClip" + (++clipSeq);
+      var cp = el("clipPath", { id: this._clipId }, el("defs", {}, this.svg));
+      el("circle", { r: 13.5 }, cp);
+    }
+    return this._clipId;
   };
 
   FY.MapView = MapView;

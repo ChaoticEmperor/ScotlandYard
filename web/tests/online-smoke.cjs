@@ -204,16 +204,26 @@ function serve() {
     for (const p of [h, a, b]) await p.close();
   }
 
-  // Two human detectives plus computer detectives; map pieces show the players' initials.
+  // Two human detectives plus computer detectives; map pieces show the players' initials, or
+  // their photo if they added one.
   async function mixedGame() {
     const h = await open("h"), a = await open("a"), b = await open("b");
-    await h.evaluate(() => { const k = "fogyard.h.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "Paul David"; localStorage.setItem(k, JSON.stringify(s)); });
-    await b.evaluate(() => { const k = "fogyard.b.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "David"; s.alias = "Holmes"; localStorage.setItem(k, JSON.stringify(s)); });
+    await h.evaluate(() => { const k = "fogyard.h.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "Paul David"; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem("fogyard.h.resume"); localStorage.removeItem("fogyard.h.host"); });
+    await b.evaluate(() => { const k = "fogyard.b.settings", s = JSON.parse(localStorage.getItem(k)); s.name = "David"; s.alias = "Holmes"; localStorage.setItem(k, JSON.stringify(s)); localStorage.removeItem("fogyard.b.resume"); });
+    // The earlier games may leave a "resume" record; clear it so the reload shows the menu.
     await h.reload(); await b.reload();
     await h.click("#mOnline"); await h.click("[data-net=host]"); await h.waitForSelector(".codebig");
     const code = (await h.textContent(".codebig")).trim();
     for (const g of [a, b]) { await g.click("#mOnline"); await g.fill("#nCode", code); await g.click("[data-net=join]"); }
     await h.waitForFunction(() => document.querySelectorAll(".pl").length === 3, null, { timeout: 15000 });
+    // b adds a photo from the lobby's Edit form; every device then shows it instead of initials.
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEklEQVR4nGP4z8CAB+GTG8HSALfKY52fTcuYAAAAAElFTkSuQmCC", "base64");
+    await b.click("[data-net=editme]");
+    await b.setInputFiles("[data-photo-input]", { name: "me.png", mimeType: "image/png", buffer: png });
+    await b.waitForSelector("[data-photo-field] .av img");
+    await b.click("[data-net=saveme]");
+    await h.waitForFunction(() => document.querySelectorAll("#onlineInner .plist .av img").length === 1, null, { timeout: 8000 }).catch(() => errors.push("mixed: host lobby does not show the photo"));
+    await a.waitForFunction(() => document.querySelectorAll("#onlineInner .plist .av img").length === 1, null, { timeout: 8000 }).catch(() => errors.push("mixed: guest lobby does not show the photo"));
     const ids = (await h.evaluate(() => Object.keys(FY.Net.session.players))).filter((id) => id !== "host");
     await h.click('[data-role="x"][data-pid="' + ids[0] + '"]');
     await h.click('[data-ndet="5"]');
@@ -224,7 +234,9 @@ function serve() {
     if (JSON.stringify(seats) !== JSON.stringify(["host", ids[1], "ai", "ai", "ai"])) errors.push("mixed: seats " + JSON.stringify(seats));
     await a.waitForTimeout(500);
     const labels = await a.evaluate(() => [...document.querySelectorAll("#mapbox .tok .tokt")].map((t) => t.textContent));
-    for (const want of ["PD", "Ho", "D3", "D4", "D5"]) if (!labels.includes(want)) errors.push("mixed: map label " + want + " missing in " + JSON.stringify(labels));
+    for (const want of ["PD", "D3", "D4", "D5"]) if (!labels.includes(want)) errors.push("mixed: map label " + want + " missing in " + JSON.stringify(labels));
+    const photos = await a.evaluate(() => [...document.querySelectorAll("#mapbox .tok")].filter((g) => g.querySelector("image")).length);
+    if (photos !== 1 || labels.includes("Ho")) errors.push("mixed: Holmes's piece should show the photo (" + photos + " photo pieces, labels " + JSON.stringify(labels) + ")");
     // Detectives go by their alias (or name) in text: "Holmes to move", "Holmes (David)" in the log.
     const names = await a.evaluate(() => [0, 1, 2].map((i) => FY.UI.controller.pieceName(i)).concat(FY.UI.controller.pieceFullName(1)));
     if (JSON.stringify(names) !== JSON.stringify(["Paul David", "Holmes", "", "Holmes (David)"])) errors.push("mixed: names " + JSON.stringify(names));
