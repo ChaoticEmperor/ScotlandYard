@@ -380,3 +380,7 @@ Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo throug
 - **Colours.** Pieces 8 to 10 got their own colours (green, crimson, navy), so no two pieces share a colour.
 - **Balance.** Mr. X still gets one black ticket per detective. In the AI-vs-AI games in `tests/test.mjs` (normal level), the detectives win about 30% with 5 pieces and roughly 55-65% with 8 to 10. Very big groups favour the detectives, which suits a party game; a strong human Mr. X does better than the AI.
 - **Tested.** `FY_PLAYERS=11 node tests/online-smoke.cjs` plays an 11-device game, one detective per device (`FY_PLAYERS` takes 3 to 11).
+
+## One colour per player
+
+- Online, every piece a player controls has the same colour: the colour of their first piece, which is their place among the detective players in the lobby. Lobby badges use that colour too (Mr. X black, watchers grey), so a player's badge, pieces, cards, picker and log entries all match. Computer pieces and solo games keep one colour per piece.
