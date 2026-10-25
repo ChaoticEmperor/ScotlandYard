@@ -34,6 +34,10 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 >
 > Map data © OpenStreetMap contributors (ODbL). The illustrated board, station layout and landmark icons are original; no board artwork, scans or official station coordinates are used.
 
+### Deploy on Netlify
+
+Connect the repository in Netlify (*Add new site → Import an existing project*) and every push to `master` deploys automatically. `netlify.toml` holds the settings: the build runs `python3 web/tools/package.py` (which stamps the offline cache) and publishes the files it packs, so `web/tests` and `web/tools` stay off the site.
+
 ### Deploy on Netlify Drop
 
 1. Open <https://app.netlify.com/drop>.
