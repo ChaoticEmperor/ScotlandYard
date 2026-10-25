@@ -28,6 +28,9 @@
   // What a detective's piece shows on the map: the player's initials online ("Da", "PD"),
   // D1, D2… in solo games or for computer-played pieces.
   function pieceLabel(i) { return (ctl && ctl.pieceInitials && ctl.pieceInitials(i)) || "D" + (i + 1); }
+  // A detective piece's colour. Online, each player keeps one colour on all their pieces (and
+  // their lobby badge); computer pieces and solo games get one colour per piece.
+  function detCol(i) { var k = ctl && ctl.pieceColorIndex ? ctl.pieceColorIndex(i) : i; return DCOL[k % DCOL.length]; }
   // Photo shown on a detective's piece online, if its player added one.
   function piecePhoto(i) { return (ctl && ctl.piecePhoto && ctl.piecePhoto(i)) || ""; }
   function detLabel(i) { return (ctl && ctl.pieceFullName && ctl.pieceFullName(i)) || detName(i); }
@@ -423,14 +426,14 @@
     var mine = ctl.myTurnDets();
     if (ui.replay) {
       var f = ui.replay.frames[ui.replay.k];
-      f.dets.forEach(function (p, j) { out.push({ id: "d" + j, n: p, label: pieceLabel(j), photo: piecePhoto(j), color: DCOL[j % DCOL.length] }); });
+      f.dets.forEach(function (p, j) { out.push({ id: "d" + j, n: p, label: pieceLabel(j), photo: piecePhoto(j), color: detCol(j) }); });
       if (f.x) out.push({ id: "x", n: f.x, label: "X", color: "#111", ring: "#e0b341", text: "#e0b341" });
       return out;
     }
     var xv = xVisible();
     if (!xv && s.last && ctl.view !== "x") out.push({ id: "xg", n: s.last.pos, label: "X", color: "#555", ring: "#e0b341", text: "#e0b341", ghost: true, tag: "seen " + s.last.move });
     for (i = 0; i < s.dets.length; i++) {
-      out.push({ id: "d" + i, n: s.dets[i].pos, label: pieceLabel(i), photo: piecePhoto(i), color: DCOL[i % DCOL.length], halo: i === ui.sel && mine.indexOf(i) >= 0, tag: String(s.dets[i].pos) });
+      out.push({ id: "d" + i, n: s.dets[i].pos, label: pieceLabel(i), photo: piecePhoto(i), color: detCol(i), halo: i === ui.sel && mine.indexOf(i) >= 0, tag: String(s.dets[i].pos) });
     }
     if (xv) out.push({ id: "x", n: xv, label: "X", color: "#111", ring: "#e0b341", text: "#e0b341", tag: String(xv) });
     return out;
@@ -536,7 +539,7 @@
     mine.forEach(function (i) {
       var moved = s.moved[i], ok = can.indexOf(i) >= 0;
       h += '<button class="chip' + (i === ui.sel && ok ? " sel" : "") + (moved ? " done" : ok ? "" : " stuck") + '" data-det="' + i + '"' + (ok ? "" : " disabled") + ">" +
-        '<span class="dot" style="background:' + DCOL[i % DCOL.length] + '">' + dotInner(i) + "</span>" + s.dets[i].pos + (moved ? " ✓" : "") + "</button>";
+        '<span class="dot" style="background:' + detCol(i) + '">' + dotInner(i) + "</span>" + s.dets[i].pos + (moved ? " ✓" : "") + "</button>";
     });
     return h + "</div>";
   }
@@ -551,7 +554,7 @@
       var count = seat && seat !== "ai" ? ctl.sess.seats.pawns.filter(function (id) { return id === seat; }).length : 1;
       if (count > 1) owner = (owner ? owner + " · " : "") + count + " pieces";
       h += '<button class="piece' + (i === ui.sel && can ? " sel" : "") + (moved ? " done" : "") + '" data-det="' + i + '"' + (can ? "" : " disabled") + ">" +
-        '<span class="top"><span class="pdot" style="background:' + DCOL[i % DCOL.length] + '">' + dotInner(i) + "</span>" + esc(detName(i)) + " · " + d.pos +
+        '<span class="top"><span class="pdot" style="background:' + detCol(i) + '">' + dotInner(i) + "</span>" + esc(detName(i)) + " · " + d.pos +
         (moved ? " ✓" : "") + "</span>" + (owner ? '<span class="own">' + esc(owner) + "</span>" : "") +
         '<span class="tks"><span>' + tkDot("taxi") + " " + d.t.taxi + "</span><span>" + tkDot("bus") + " " + d.t.bus + "</span><span>" + tkDot("underground") + " " + d.t.underground + "</span></span></button>";
     });
@@ -644,7 +647,7 @@
     if (p.det != null) {
       var d = s.dets[p.det], own = detLabel(p.det);
       var moved = (s.pending === "det" || s.pending === "probe") && s.moved[p.det];
-      return '<div class="pl"><span class="pdot" style="background:' + DCOL[p.det % DCOL.length] + ';width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;overflow:hidden">' + dotInner(p.det) + "</span>" +
+      return '<div class="pl"><span class="pdot" style="background:' + detCol(p.det) + ';width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;overflow:hidden">' + dotInner(p.det) + "</span>" +
         '<span class="who">' + esc(own) + (moved ? " · moved" : "") + "</span>" +
         '<span class="chips"><span class="chip">' + tkDot("taxi") + d.t.taxi + '</span><span class="chip">' + tkDot("bus") + d.t.bus + '</span><span class="chip">' + tkDot("underground") + d.t.underground + "</span></span></div>";
     }
@@ -715,7 +718,7 @@
       return '<li><span class="who">' + esc(XN()) + "</span>" + tkDot(e.tk) + " " + TK[e.tk].n + (e.dbl ? " (double)" : "") +
         (pos ? ' <span class="ar">→</span> <b>' + pos + "</b>" : ' <span class="ar">→ ?</span>') + (e.rev != null ? " ★ seen" : "") + "</li>";
     }
-    if (e.k === "d") return '<li><span class="who" style="color:' + DCOL[e.i % DCOL.length] + '">' + esc(detLabel(e.i)) + "</span>" + tkDot(e.tk) + " " + e.from + ' <span class="ar">→</span> ' + e.to + "</li>";
+    if (e.k === "d") return '<li><span class="who" style="color:' + detCol(e.i) + '">' + esc(detLabel(e.i)) + "</span>" + tkDot(e.tk) + " " + e.from + ' <span class="ar">→</span> ' + e.to + "</li>";
     if (e.k === "skip") return '<li class="sys">' + esc(detName(e.i)) + " could not move and was skipped.</li>";
     if (e.k === "caught") return '<li class="win">' + esc(detName(e.i)) + " caught " + esc(XN()) + " at " + e.pos + "!</li>";
     if (e.k === "trapped") return '<li class="win">' + esc(XN()) + " was trapped.</li>";
@@ -735,7 +738,7 @@
     h += "<tr><td>" + esc(xLabel()) + "</td><td>" + xu.taxi + "</td><td>" + xu.bus + "</td><td>" + xu.underground + "</td><td>" + xu.black + " black, " + xu.double + " double</td><td>–</td></tr>";
     s.dets.forEach(function (d, i) {
       var u = used[i] || { taxi: 0, bus: 0, underground: 0 };
-      h += '<tr><td style="color:' + DCOL[i % DCOL.length] + ';font-weight:700">' + esc(detLabel(i)) + "</td><td>" + u.taxi + "</td><td>" + u.bus + "</td><td>" + u.underground + "</td><td></td><td>" + ((near[i] || []).join(", ") || "–") + "</td></tr>";
+      h += '<tr><td style="color:' + detCol(i) + ';font-weight:700">' + esc(detLabel(i)) + "</td><td>" + u.taxi + "</td><td>" + u.bus + "</td><td>" + u.underground + "</td><td></td><td>" + ((near[i] || []).join(", ") || "–") + "</td></tr>";
     });
     return h + "</tbody></table>";
   }

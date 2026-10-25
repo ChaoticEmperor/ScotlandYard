@@ -357,6 +357,12 @@
     var base = pawns.map(function (id) { var p = ro[id]; return id === "ai" || !p ? "" : FY.UI.initials(p.alias || p.name); });
     return numbered(base, i, "");
   };
+  // One colour per player: every piece a player controls uses the colour of their first piece,
+  // which is also their slot among the detective players in the lobby. Computer pieces keep their own.
+  NetController.prototype.pieceColorIndex = function (i) {
+    var pawns = this.sess.seats.pawns;
+    return pawns[i] === "ai" ? i : pawns.indexOf(pawns[i]);
+  };
   // The photo of the player behind a detective piece, if they added one (shown instead of initials).
   NetController.prototype.piecePhoto = function (i) {
     var id = this.sess.seats.pawns[i];
@@ -1033,9 +1039,12 @@
     if (!info) { $("#onlineInner").innerHTML = h + '<p class="note">' + (sess.offline ? "Connecting…" : "Waiting for the game master…") + "</p>"; return; }
     var roleNames = { x: "Mr. X", det: "Detective", watch: "Watching" };
     h += '<div class="sect">Players</div><div class="plist">';
-    Object.keys(info.players).forEach(function (id, k) {
-      var p = info.players[id], r = info.roles[id] || "det";
-      h += '<div class="pl">' + FY.UI.avatar(p.alias || p.name, photoOf(sess, id), FY.UI.DCOL[k % FY.UI.DCOL.length]) + '<span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
+    // Badges use the colour each player's pieces will have: detectives in lobby order, Mr. X black.
+    var detIds = Object.keys(info.players).filter(function (id) { return info.roles[id] === "det"; });
+    Object.keys(info.players).forEach(function (id) {
+      var p = info.players[id], r = info.roles[id] || "det", di = detIds.indexOf(id);
+      var col = r === "x" ? "#111" : di >= 0 ? FY.UI.DCOL[di % FY.UI.DCOL.length] : "#78716c";
+      h += '<div class="pl">' + FY.UI.avatar(p.alias || p.name, photoOf(sess, id), col) + '<span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
         (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : host ? '<button class="btn sm" data-net="kick" data-pid="' + id + '" aria-label="Remove ' + FY.UI.esc(p.name) + '">Remove</button>' : "") +
         (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>');
       if (host) {
