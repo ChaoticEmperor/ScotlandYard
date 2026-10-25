@@ -384,3 +384,9 @@ Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo throug
 ## One colour per player
 
 - Online, every piece a player controls has the same colour: the colour of their first piece, which is their place among the detective players in the lobby. Lobby badges use that colour too (Mr. X black, watchers grey), so a player's badge, pieces, cards, picker and log entries all match. Computer pieces and solo games keep one colour per piece.
+
+## Fix: Mr. X's device flooded the game master
+
+- **Bug.** When Mr. X plays on a guest's phone, his device sends its automatic steps (start commitment, capture-check answers, trap report, route reveal) as requests. Right after sending one, it looked again; until the game master's copy came back the same step still looked due, so it sent it again in a zero-delay loop. Every copy was rejected ("no capture check expected…"), but on a real network that is dozens of copies per capture check. With 10 detectives the game master's page fell behind, froze for minutes and grew to gigabytes of memory, and the other players gave up with "Lost the connection to the game master".
+- **Fix.** Each automatic step, named by its place in the log, is sent once. It is re-sent only if it hasn't landed after `FY.CONFIG.net.autoResendMs` (4 s), which covers a request lost to a reconnect.
+- **Measured** in an 11-device test game: before, 40 rejected copies in the first 3 seconds and the game stalled at 24-36 log entries; after, no rejections, one request per step, and 66 entries in the first minute with no stalls.

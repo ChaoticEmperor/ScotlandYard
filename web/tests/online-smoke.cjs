@@ -151,10 +151,17 @@ function serve() {
     if (out) await h.screenshot({ path: path.join(out, "lobby-" + n + ".png"), fullPage: true });
     await h.click("[data-net=start]");
     for (const k of names) await pages[k].waitForSelector("#game:not(.hidden)", { timeout: 20000 });
+    // Record each page's longest main-thread stall: a stall over awayAfterMs (30 s) means the
+    // machine running the test is starved, not that the game lost a player.
+    for (const k of names) await pages[k].evaluate(() => { let last = Date.now(); window.__maxLag = 0; setInterval(() => { const now = Date.now(); window.__maxLag = Math.max(window.__maxLag, now - last - 1000); last = now; }, 1000); });
+    const started = Date.now();
     const done = await playUntilOver(pages, {});
+    const lags = [];
+    for (const k of names) lags.push(k + ":" + Math.round((await pages[k].evaluate(() => window.__maxLag)) / 1000) + "s");
+    console.log(tag + ": played " + Math.round((Date.now() - started) / 1000) + " s; longest page stalls " + lags.join(" "));
     await h.waitForTimeout(1000);
     const res = [];
-    for (const k of names) res.push(await pages[k].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
+    for (const k of names) res.push(await pages[k].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; if (!s || !c || !c.s) return { closed: true, screen: ["menu", "online", "game"].filter((id) => !document.getElementById(id).classList.contains("hidden")).join(), text: (document.getElementById("onlineInner") || {}).textContent }; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
     console.log(tag + " game:", done ? "finished" : "DID NOT FINISH", JSON.stringify(res[0]));
     if (new Set(res.map((r) => r.entries)).size !== 1) errors.push(tag + ": devices disagree on the log");
     res.forEach((r, k) => { if (r.problem || r.audit !== true || r.over !== "over") errors.push(tag + ", " + names[k] + ": " + JSON.stringify(r)); });
