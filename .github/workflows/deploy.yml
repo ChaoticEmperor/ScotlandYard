@@ -34,9 +34,10 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'manual deploy' }}
         run: |
           if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
             echo "::error::Add the NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID repository secrets."
             exit 1
           fi
-          npx --yes netlify-cli@17 deploy --dir=dist --prod --message "${GITHUB_SHA::7}: ${{ github.event.head_commit.message || 'manual deploy' }}" | tail -n 20
+          npx --yes netlify-cli@17 deploy --dir=dist --prod --message "${GITHUB_SHA::7}: ${COMMIT_MSG%%$'\n'*}" | tail -n 20
