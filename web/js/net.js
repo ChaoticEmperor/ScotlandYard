@@ -421,10 +421,21 @@
     if (xAuthor !== sess.myId || sess.busyAuto) return;
     var board = FY.UI.board;
     // One automatic step at a time; when it lands, look again (the next step may already be due).
-    function run(p) {
+    // A guest's step is only a request: until the game master's copy comes back, the same step
+    // still looks due. Each step (named by its log position) is therefore sent once, and only
+    // re-sent if it hasn't landed after autoResendMs (a request lost to a reconnect). Re-sending
+    // at once flooded the game master with copies and, with many players, stalled the game.
+    function run(name, make) {
+      var key = sess.gameId + ":" + sess.entries.length + ":" + name, last = sess.autoSent, wait = last && last.key === key ? C.net.autoResendMs - (Date.now() - last.at) : 0;
+      if (wait > 0) {
+        clearTimeout(sess.autoRetry);
+        sess.autoRetry = setTimeout(function () { if (!sess.closed) holderAuto(sess); }, wait + 50);
+        return;
+      }
+      sess.autoSent = { key: key, at: Date.now() };
       sess.busyAuto = true;
       var again = function () { sess.busyAuto = false; setTimeout(function () { if (!sess.closed) holderAuto(sess); }, 0); };
-      p.then(again, again);
+      make().then(again, again);
     }
     if (s && !sess.commit0 && s.pending !== "over") {
       if (!sess.secret || sess.secret.startFor !== sess.gameId) {
@@ -433,13 +444,13 @@
         sess.secret = { pos: start, start: start, route: [], salts: [randomHex(16)], startFor: sess.gameId };
         saveSecret(sess);
       }
-      return run(sha256(commitStr(sess.code, 0, sess.secret.start, sess.secret.salts[0])).then(function (c) { return sess.author({ t: "commit0", c: c }); }));
+      return run("commit0", function () { return sha256(commitStr(sess.code, 0, sess.secret.start, sess.secret.salts[0])).then(function (c) { return sess.author({ t: "commit0", c: c }); }); });
     }
     if (!s || !sess.secret) return;
-    if (s.pending === "probe") return run(sess.author(R.probeFor(s, sess.secret)));
-    if (s.pending === "x" && s.xStep === 0 && sess.commit0 && R.isTrapped(board, s, sess.secret)) return run(sess.author({ t: "trapped" }));
+    if (s.pending === "probe") return run("probe", function () { return sess.author(R.probeFor(s, sess.secret)); });
+    if (s.pending === "x" && s.xStep === 0 && sess.commit0 && R.isTrapped(board, s, sess.secret)) return run("trapped", function () { return sess.author({ t: "trapped" }); });
     if (s.pending === "over" && !sess.routeEntry) {
-      return run(sess.author({ t: "route", route: [sess.secret.start].concat(sess.secret.route), salts: sess.secret.salts }));
+      return run("route", function () { return sess.author({ t: "route", route: [sess.secret.start].concat(sess.secret.route), salts: sess.secret.salts }); });
     }
   }
 
