@@ -28,20 +28,17 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 
 ## Find Mr. X (web version)
 
+**Play:** https://davidson-yard.netlify.app
+
 `web/` contains **Find Mr. X**, a mobile-first browser version of the game, playable solo or online with 2 to 8 players (Mr. X plus up to 7 detectives; more people can join to watch). It is a static site: plain HTML, CSS and JavaScript with no build step and no frameworks. The only external scripts are PeerJS 1.5.4 and the Oswald font, both from jsDelivr and pinned to exact versions.
 
 > Station network derived from tim-koehler/ScotlandYard (Apache-2.0). Find Mr. X is an unofficial fan project and is not affiliated with Ravensburger.
 >
 > Map data © OpenStreetMap contributors (ODbL). The illustrated board, station layout and landmark icons are original; no board artwork, scans or official station coordinates are used.
 
-### Automatic deploys on Netlify
+### Deploy on Netlify
 
-`.github/workflows/deploy.yml` deploys the site on every push to `master`; it can also be run by hand from the **Actions** tab (*Deploy to Netlify → Run workflow*). It runs the rule and protocol tests, builds `dist/` with `python3 web/tools/package.py --dir dist`, and publishes it with the Netlify CLI.
-
-It needs two repository secrets (GitHub → **Settings → Secrets and variables → Actions**):
-
-- `NETLIFY_AUTH_TOKEN`: a personal access token from Netlify (**User settings → Applications → Personal access tokens**).
-- `NETLIFY_SITE_ID`: the site's ID (**Project configuration → General → Project ID**).
+Connect the repository in Netlify (*Add new site → Import an existing project*) and every push to `master` deploys automatically (live at https://davidson-yard.netlify.app). `netlify.toml` holds the settings: the build runs `python3 web/tools/package.py` (which stamps the offline cache) and publishes the files it packs, so `web/tests` and `web/tools` stay off the site.
 
 ### Deploy on Netlify Drop
 

@@ -49,3 +49,5 @@ yourgame.log
 .metals
 
 null/
+# Netlify build output
+site/

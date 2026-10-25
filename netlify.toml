@@ -1,7 +1,12 @@
-# Deploys run from GitHub Actions (.github/workflows/deploy.yml), which builds dist/ with
-# python3 web/tools/package.py --dir dist. This file only sets headers for the published site.
+# Static site: Find Mr. X is web/, with no build step. package.py stamps the offline cache in
+# sw.js and packs only the files the site serves into web.zip; we publish that, unpacked, so
+# web/tests, web/tools and the notes stay off the site. Online games go through PeerJS, so
+# there is no server to deploy.
+[build]
+  command = "python3 web/tools/package.py && rm -rf site && python3 -m zipfile -e web.zip site"
+  publish = "site"
 
-# The service worker must never be cached, or phones keep the old version of the game.
+# The service worker must be fetched fresh so a new deploy's cache VERSION is picked up.
 [[headers]]
   for = "/sw.js"
   [headers.values]
