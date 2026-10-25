@@ -154,7 +154,7 @@ function serve() {
     const done = await playUntilOver(pages, {});
     await h.waitForTimeout(1000);
     const res = [];
-    for (const k of names) res.push(await pages[k].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
+    for (const k of names) res.push(await pages[k].evaluate(() => { const c = FY.UI.controller, s = FY.Net.session; if (!s || !c || !c.s) return { closed: true, screen: ["menu", "online", "game"].filter((id) => !document.getElementById(id).classList.contains("hidden")).join(), text: (document.getElementById("onlineInner") || {}).textContent }; return { dets: c.s.dets.length, mine: c.myDets.length, entries: s.entries.length, audit: s.audit && s.audit.ok, problem: s.problem || null, x: c.xLabel(), over: c.s.pending, reason: c.s.reason }; }));
     console.log(tag + " game:", done ? "finished" : "DID NOT FINISH", JSON.stringify(res[0]));
     if (new Set(res.map((r) => r.entries)).size !== 1) errors.push(tag + ": devices disagree on the log");
     res.forEach((r, k) => { if (r.problem || r.audit !== true || r.over !== "over") errors.push(tag + ", " + names[k] + ": " + JSON.stringify(r)); });
