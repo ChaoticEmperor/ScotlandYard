@@ -9,7 +9,7 @@
       reveals: [3, 8, 13, 18, 24], // Mr. X surfaces after these moves
       detectivePawns: 5, // detective pieces on the board, shared out between detective players
       minDetectivePawns: 2,
-      maxDetectivePawns: 7, // the classic game stops at 5; 6-7 is a big-group variant (Mr. X gets a black ticket per detective)
+      maxDetectivePawns: 10, // the classic game stops at 5; 6-10 is a big-group variant (Mr. X gets a black ticket per detective)
       detectiveTickets: { taxi: 11, bus: 8, underground: 4 },
       mrxTickets: { taxi: 4, bus: 3, underground: 3 },
       mrxBlack: "perDetective", // a number, or "perDetective" (one black ticket per detective pawn)
@@ -20,7 +20,7 @@
       stuckDetectivesLose: true // Mr. X wins if no detective can move
     },
 
-    players: { min: 2, max: 8, maxInLobby: 12 }, // max = people with a role (Mr. X + up to 7 detectives); extra people can watch
+    players: { min: 2, max: 11, maxInLobby: 14 }, // max = people with a role (Mr. X + up to 10 detectives); extra people can watch
 
     ai: {
       thinkMs: 650, // pause before a computer move, so humans can follow it

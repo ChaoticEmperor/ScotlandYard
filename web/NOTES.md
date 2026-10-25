@@ -372,3 +372,10 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 - **Solo games and computer pieces** keep D1, D2…, since one person plays every piece.
 
 Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo through the lobby's file picker and checks it on the other devices' lobby and map.
+
+## Up to 10 detectives
+
+- **Limits.** Up to 10 detective pieces (`maxDetectivePawns: 10`), so up to 11 people with a role (Mr. X plus 10 detectives) and 14 in a lobby, the extras watching. Solo games offer 2 to 10 detectives too. The board has 16 detective start stations, so every piece still gets its own start card.
+- **Colours.** Pieces 8 to 10 got their own colours (green, crimson, navy), so no two pieces share a colour.
+- **Balance.** Mr. X still gets one black ticket per detective. In the AI-vs-AI games in `tests/test.mjs` (normal level), the detectives win about 30% with 5 pieces and roughly 55-65% with 8 to 10. Very big groups favour the detectives, which suits a party game; a strong human Mr. X does better than the AI.
+- **Tested.** `FY_PLAYERS=11 node tests/online-smoke.cjs` plays an 11-device game, one detective per device (`FY_PLAYERS` takes 3 to 11).
