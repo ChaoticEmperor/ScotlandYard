@@ -362,3 +362,12 @@ Mini Militia is a native app: it finds players with LAN broadcasts and talks ove
 - **Lines you can take.** When it is your turn, every line the selected piece can travel is lit on the map in its transport colour (white casing, flowing dashes), not just the destination stations. A black ticket lights the ferry, or each land line that joins the two stations. Reduced motion stops the flow.
 - **Replay buttons.** In the dark theme the replay ◀ ▶ Done buttons were dark on dark. They now stay light in both themes, like the zoom buttons.
 - **Trail of the last move.** A detective's move leaves a glow along the line it took, fading over about 3 seconds. Mr. X's own moves leave a trail only on his device, so nothing is given away.
+
+## Player photos
+
+- **Photo or initials.** Each player can add a photo on their own device: on the *Play online* screen, from *Edit* in the lobby, or mid-game from the game menu (*Change my name, alias or photo*). Their detective pieces on the map, the piece cards and the lobby list then show the photo. Without a photo they show the player's initials in the piece's coloured badge ("Paul Davidson" → "PD", "Sam" → "Sa", alias if one is set). One player with several pieces keeps the piece number: "PD1", or a small number on the photo.
+- **Small and local.** The picture is cropped to a centred square and shrunk on the phone to a 96 px JPEG (a few KB, capped at `FY.CONFIG.net.photoMaxChars`) before it is saved or sent. Nothing is uploaded to a server.
+- **Outside the signed log.** Photos are decoration, so they never enter the signed game log. The game master keeps them with the player list and sends a `photos` message to every device when one is added, changed or removed, and to each device that (re)joins. Every device only accepts small `data:image/jpeg|png|webp` values. Changing only a photo mid-game doesn't write a rename entry.
+- **Solo games and computer pieces** keep D1, D2…, since one person plays every piece.
+
+Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo through the lobby's file picker and checks it on the other devices' lobby and map.

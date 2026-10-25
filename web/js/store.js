@@ -31,7 +31,8 @@
     vibrate: true,
     awake: true, // keep the screen on during online games
     name: "",
-    alias: ""
+    alias: "",
+    photo: "" // small JPEG data URL, see FY.UI.readPhoto
   };
   function settings() {
     var s = get("settings", {}), out = {};

@@ -350,19 +350,17 @@
     var n = this.pieceName(i) || "D" + (i + 1), o = this.detOwnerLabel(i);
     return o ? n + " (" + o + ")" : n;
   };
-  // Initials for each detective piece: "David" -> "Da", "Paul David" -> "PD" (alias if set).
+  // Initials for each detective piece: "David" -> "Da", "Paul Davidson" -> "PD" (alias if set).
   // Clashing initials, or one player with several pieces, get a number: "Jo1", "Jo2".
-  function initials(name) {
-    var words = String(name || "").trim().split(/\s+/).filter(Boolean);
-    if (!words.length) return "";
-    if (words.length > 1) return (Array.from(words[0])[0] + Array.from(words[1])[0]).toUpperCase();
-    var w = Array.from(words[0]);
-    return w.length > 1 ? w[0].toUpperCase() + w[1].toLowerCase() : w[0].toUpperCase();
-  }
   NetController.prototype.pieceInitials = function (i) {
     var sess = this.sess, pawns = sess.seats.pawns, ro = sess.roster || {};
-    var base = pawns.map(function (id) { var p = ro[id]; return id === "ai" || !p ? "" : initials(p.alias || p.name); });
+    var base = pawns.map(function (id) { var p = ro[id]; return id === "ai" || !p ? "" : FY.UI.initials(p.alias || p.name); });
     return numbered(base, i, "");
+  };
+  // The photo of the player behind a detective piece, if they added one (shown instead of initials).
+  NetController.prototype.piecePhoto = function (i) {
+    var id = this.sess.seats.pawns[i];
+    return id && id !== "ai" ? photoOf(this.sess, id) : "";
   };
   NetController.prototype.xShort = function () {
     var p = (this.sess.roster || {})[this.sess.seats.mrx];
@@ -378,7 +376,7 @@
     return this.sess.role === "host" ? "The game stays saved on this device; resume hosting from the online menu." : "You can rejoin with the same code while the game master's game is open.";
   };
   NetController.prototype.extraMenu = function () {
-    return '<button class="btn" data-act="profile">Change my name or alias</button>' + (this.isGM ? '<button class="btn" data-act="seats">Players and seats</button>' : "") + '<button class="btn" data-act="keys">Check fingerprints</button>';
+    return '<button class="btn" data-act="profile">Change my name, alias or photo</button>' + (this.isGM ? '<button class="btn" data-act="seats">Players and seats</button>' : "") + '<button class="btn" data-act="keys">Check fingerprints</button>';
   };
   NetController.prototype.onAction = function (a) {
     if (a === "seats") seatsDialog(this.sess);
@@ -535,7 +533,7 @@
 
   function hostSession(code, saved) {
     var sess = baseSession("host", code), T = transport();
-    sess.players.host = { name: S.settings().name || "Game master", alias: S.settings().alias || "", key: null, online: true, fp: "" };
+    sess.players.host = { name: S.settings().name || "Game master", alias: S.settings().alias || "", photo: S.settings().photo || "", key: null, online: true, fp: "" };
     sess.lobbySeats = { mrx: "host", roles: { host: "x" } };
     sess.conns = {};
     sess.author = function (ev) {
@@ -604,6 +602,7 @@
         who = id;
         var p = sess.players[id] = known || { name: name, key: m.key || null };
         if (!known) { p.name = name; p.alias = alias; }
+        var photoChanged = "photo" in m && setPhoto(p, m.photo);
         p.online = true; p.seen = Date.now();
         // The same player opening the game in a second tab or window takes the seat over;
         // the old tab is told why, so the two don't keep knocking each other off.
@@ -618,6 +617,7 @@
           if (!sess.lobbySeats.roles[id]) sess.lobbySeats.roles[id] = playingCount(sess) >= C.players.max ? "watch" : "det";
           conn.send({ t: "welcome", code: sess.code, you: id });
           conn.send({ t: "sync", entries: sess.entries });
+          if (photoChanged) broadcastPhotos(sess); else conn.send(photosMsg(sess));
           broadcastLobby(sess);
           if (sess.state) sendSecretTo(sess, id);
           if (known && sess.state) hostNote(sess, p.name + " reconnected.");
@@ -634,7 +634,7 @@
         if (!legal || (m.dbl && !R.canDouble(FY.UI.board, s, sess.secret) && s.xStep === 0)) return conn.send({ t: "reject", reason: "That move isn't legal." });
         holderMove(sess, { to: m.opt.to, tk: m.opt.tk }, !!m.dbl);
       } else if (m.t === "sync?") conn.send({ t: "sync", entries: sess.entries });
-      else if (m.t === "profile" && who) hostProfile(sess, who, m.name, m.alias);
+      else if (m.t === "profile" && who) hostProfile(sess, who, m.name, m.alias, m.photo);
       else if (m.t === "peek" && who && sess.seats && sess.seats.mrx === who && gmMayWatch(sess) && m.secret) {
         sess.peek = { pos: m.secret.pos | 0, start: m.secret.start | 0, route: (m.secret.route || []).map(function (n) { return n | 0; }) };
         sess.emit();
@@ -660,19 +660,49 @@
   }
   // A player's new name or alias: in the lobby it just updates the list; during a game it
   // becomes a rename entry in the shared log so every device shows the new name.
-  function hostProfile(sess, id, name, alias) {
+  // A photo, if given (undefined leaves it), changes nothing in the shared log: photos are
+  // only decoration, so they travel separately and never touch signed entries.
+  function hostProfile(sess, id, name, alias, photo) {
     var p = sess.players[id];
     if (!p) return;
     name = cleanName(name, 16) || p.name; alias = cleanName(alias, 20);
+    var renamed = p.name !== name || (p.alias || "") !== alias;
     p.name = name; p.alias = alias;
-    if (sess.state) sess.author({ t: "rename", id: id, name: name, alias: alias });
+    if (photo !== undefined && setPhoto(p, photo)) broadcastPhotos(sess);
+    if (sess.state && renamed) sess.author({ t: "rename", id: id, name: name, alias: alias });
     broadcastLobby(sess);
     sess.emit();
   }
-  function setProfile(sess, name, alias) {
+  function setProfile(sess, name, alias, photo) {
     S.saveSetting("name", cleanName(name, 16)); S.saveSetting("alias", cleanName(alias, 20));
-    if (sess.role === "host") hostProfile(sess, "host", name, alias);
-    else { sess.name = cleanName(name, 16) || sess.name; sess.alias = cleanName(alias, 20); sess.send({ t: "profile", name: name, alias: alias }); }
+    if (photo != null) S.saveSetting("photo", photo);
+    if (sess.role === "host") hostProfile(sess, "host", name, alias, photo == null ? undefined : photo);
+    else {
+      sess.name = cleanName(name, 16) || sess.name; sess.alias = cleanName(alias, 20);
+      var m = { t: "profile", name: name, alias: alias };
+      if (photo != null) { sess.photo = photo; m.photo = photo; }
+      sess.send(m);
+    }
+  }
+
+  // ------------------------------------------------------------------ photos
+  // Each player's photo lives with the game master's player list and is sent to every device
+  // as one "photos" message whenever someone adds, changes or removes theirs.
+  function setPhoto(p, v) {
+    v = FY.UI.photoOk(v) ? v : "";
+    if ((p.photo || "") === v) return false;
+    p.photo = v;
+    return true;
+  }
+  function photosMsg(sess) {
+    var out = {};
+    Object.keys(sess.players).forEach(function (id) { if (sess.players[id].photo) out[id] = sess.players[id].photo; });
+    return { t: "photos", photos: out };
+  }
+  function broadcastPhotos(sess) { sess.broadcast(photosMsg(sess)); }
+  function photoOf(sess, id) {
+    if (sess.role === "host") { var p = sess.players[id]; return (p && p.photo) || ""; }
+    return (sess.photos && sess.photos[id]) || "";
   }
 
   // Appends an entry after the same checks every device will run, then relays it. Verification,
@@ -791,6 +821,8 @@
     var sess = baseSession("guest", code), T = transport(), saved = S.get("guest", null);
     sess.name = name;
     sess.alias = S.settings().alias || "";
+    sess.photo = S.settings().photo || "";
+    sess.photos = {};
     sess.tries = 0;
     var ready = saved && saved.keys ? loadKeys(saved.keys) : subtle ? genKeys() : Promise.resolve(null);
     sess.secret = S.get("xsecret." + code, null);
@@ -804,7 +836,7 @@
       sess.conn = T.connect(C.net.peerPrefix + code, {
         open: function () {
           sess.tries = 0; sess.offline = false; sess.lastSeen = Date.now();
-          sess.send({ t: "hello", id: sess.myId, name: sess.name, alias: sess.alias, key: sess.keys && sess.keys.pub });
+          sess.send({ t: "hello", id: sess.myId, name: sess.name, alias: sess.alias, photo: sess.photo, key: sess.keys && sess.keys.pub });
         },
         data: function (m) { sess.lastSeen = Date.now(); guestMsg(sess, m); },
         close: function () { lost(); },
@@ -846,6 +878,12 @@
     if (m.t === "welcome" && sess.secret && gmMayWatch(sess)) setTimeout(function () { saveSecret(sess); }, 300);
     if (m.t === "welcome") { sess.everJoined = true; sess.lostAt = 0; sess.offline = false; sess.emit(); }
     else if (m.t === "lobby") { sess.lobby = m.info; if (!sess.state) renderLobby(); }
+    else if (m.t === "photos" && m.photos && typeof m.photos === "object") {
+      sess.photos = {};
+      Object.keys(m.photos).forEach(function (id) { if (FY.UI.photoOk(m.photos[id])) sess.photos[id] = m.photos[id]; });
+      if (!sess.state) renderLobby();
+      sess.emit();
+    }
     else if (m.t === "reset") { sess.entries = []; sess.state = null; sess.commit0 = null; sess.routeEntry = null; sess.audit = null; sess.problem = null; sess.queue = Promise.resolve(); if (sess.ctl) { sess.ctl.destroy(); sess.ctl = null; } }
     else if (m.t === "sync") {
       // Rebuild from the full log, verifying every entry again.
@@ -904,6 +942,7 @@
     var ok = transport().available();
     var h = '<button class="linkbtn back" data-net="back">&larr; Back</button><h2 class="disp">Play online</h2>' +
       (msg ? '<p class="note" style="color:var(--bad);font-weight:700">' + FY.UI.esc(msg) + "</p>" : "") +
+      FY.UI.photoField(st.photo, st.alias || st.name) +
       '<input class="txt" id="nName" maxlength="16" placeholder="Your name" autocomplete="nickname" aria-label="Your name" value="' + FY.UI.esc(st.name || "") + '">' +
       '<input class="txt" id="nAlias" maxlength="20" placeholder="Alias for your role (optional, e.g. Moriarty)" aria-label="Alias (optional)" value="' + FY.UI.esc(st.alias || "") + '">' +
       '<button class="role" data-net="host"' + (ok ? "" : " disabled") + "><b>Host a game</b><span>You're the game master: share a code, hand out roles, and play Mr. X, a detective, or just referee.</span></button>" +
@@ -917,6 +956,8 @@
   function nameValue() {
     var v = cleanName($("#nName") && $("#nName").value, 16), a = cleanName($("#nAlias") && $("#nAlias").value, 20);
     S.saveSetting("name", v); S.saveSetting("alias", a);
+    var ph = FY.UI.photoValue($("#onlineInner"));
+    if (ph != null) S.saveSetting("photo", ph);
     return v;
   }
   function startHosting(saved) {
@@ -933,6 +974,7 @@
       current = sess;
       S.set("resume", { kind: "host", code: code });
       if (name) { sess.players.host.name = name; sess.players.host.alias = S.settings().alias || ""; }
+      if (setPhoto(sess.players.host, S.settings().photo)) broadcastPhotos(sess);
       if (sess.state) onSessionChange(sess); else renderLobby();
     }, function (err) {
       if (err === "unavailable-id" && !saved) return startHosting(null);
@@ -991,9 +1033,9 @@
     if (!info) { $("#onlineInner").innerHTML = h + '<p class="note">' + (sess.offline ? "Connecting…" : "Waiting for the game master…") + "</p>"; return; }
     var roleNames = { x: "Mr. X", det: "Detective", watch: "Watching" };
     h += '<div class="sect">Players</div><div class="plist">';
-    Object.keys(info.players).forEach(function (id) {
+    Object.keys(info.players).forEach(function (id, k) {
       var p = info.players[id], r = info.roles[id] || "det";
-      h += '<div class="pl"><span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
+      h += '<div class="pl">' + FY.UI.avatar(p.alias || p.name, photoOf(sess, id), FY.UI.DCOL[k % FY.UI.DCOL.length]) + '<span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
         (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : host ? '<button class="btn sm" data-net="kick" data-pid="' + id + '" aria-label="Remove ' + FY.UI.esc(p.name) + '">Remove</button>' : "") +
         (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>');
       if (host) {
@@ -1006,7 +1048,7 @@
     h += "</div>";
     if (ui_edit) {
       var me = info.players[sess.myId] || { name: sess.name || "", alias: sess.alias || "" };
-      h += '<div class="pl" style="flex-direction:column;align-items:stretch"><input class="txt" id="eName" maxlength="16" placeholder="Your name" value="' + FY.UI.esc(me.name || "") + '">' +
+      h += '<div class="pl" style="flex-direction:column;align-items:stretch">' + FY.UI.photoField(photoOf(sess, sess.myId) || S.settings().photo, me.alias || me.name) + '<input class="txt" id="eName" maxlength="16" placeholder="Your name" value="' + FY.UI.esc(me.name || "") + '">' +
         '<input class="txt" id="eAlias" maxlength="20" placeholder="Alias for your role (optional)" value="' + FY.UI.esc(me.alias || "") + '">' +
         '<div class="row"><button class="btn pri grow" data-net="saveme">Save</button><button class="btn grow" data-net="canceledit">Cancel</button></div></div>';
     }
@@ -1102,11 +1144,12 @@
   }
   function profileDialog(sess) {
     var me = (sess.roster || {})[sess.myId] || {};
-    FY.UI.overlay('<h2 class="disp">Your name</h2><p class="note">Everyone in the game will see the change.</p>' +
+    FY.UI.overlay('<h2 class="disp">Your name and photo</h2><p class="note">Everyone in the game will see the change.</p>' +
       '<label class="field"><span>Name</span><input class="txt" id="pName" maxlength="16" value="' + FY.UI.esc(me.name || "") + '"></label>' +
       '<label class="field"><span>Alias for your role <small class="note">(optional)</small></span><input class="txt" id="pAlias" maxlength="20" value="' + FY.UI.esc(me.alias || "") + '" placeholder="e.g. Moriarty or Inspector Holmes"></label>' +
+      FY.UI.photoField(photoOf(sess, sess.myId) || S.settings().photo, me.alias || me.name) +
       '<div class="row"><button class="btn pri grow" id="pSave">Save</button><button class="btn grow" data-act="close">Cancel</button></div>', function (card) {
-      card.querySelector("#pSave").onclick = function () { setProfile(sess, card.querySelector("#pName").value, card.querySelector("#pAlias").value); FY.UI.closeLayers(); };
+      card.querySelector("#pSave").onclick = function () { setProfile(sess, card.querySelector("#pName").value, card.querySelector("#pAlias").value, FY.UI.photoValue(card)); FY.UI.closeLayers(); };
     });
   }
   function keysDialog(sess) {
@@ -1141,7 +1184,7 @@
       return broadcastLobby(sess);
     }
     if (a === "canceledit") { ui_edit = false; return renderLobby(); }
-    if (a === "saveme" && sess) { ui_edit = false; setProfile(sess, $("#eName").value, $("#eAlias").value); return renderLobby(); }
+    if (a === "saveme" && sess) { ui_edit = false; setProfile(sess, $("#eName").value, $("#eAlias").value, FY.UI.photoValue($("#onlineInner"))); return renderLobby(); }
     if (a === "host") return startHosting(null);
     if (a === "resume") return startHosting(S.get("host", null));
     if (a === "join") {
