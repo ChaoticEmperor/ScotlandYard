@@ -72,7 +72,8 @@
     if (photoOk(photo)) return '<span class="' + c + '"' + bgc + '><img src="' + esc(photo) + '" alt=""></span>';
     return '<span class="' + c + '"' + bgc + ' aria-hidden="true">' + esc(initials(name) || "?") + "</span>";
   }
-  // A photo picker for forms: the badge preview, "Add photo" / "Change photo" and "Remove".
+  // A photo picker for forms: the badge preview, "Take photo" (opens the front camera on phones;
+  // Android's photo picker otherwise offers only the gallery), "Choose photo" and "Remove".
   // The chosen photo is kept in data-photo; read it back with photoValue(container).
   function photoField(photo, name) {
     var p = photoOk(photo) ? photo : "";
@@ -80,9 +81,12 @@
   }
   function photoFieldInner(p, name) {
     return avatar(name, p, DCOL[0], "lg") +
-      '<label class="btn sm">' + (p ? "Change photo" : "Add photo") + '<input type="file" accept="image/*" class="hidden" data-photo-input aria-label="Your photo"></label>' +
+      (phoneCamera() ? '<label class="btn sm">Take photo<input type="file" accept="image/*" capture="user" class="hidden" data-photo-input aria-label="Take a photo"></label>' : "") +
+      '<label class="btn sm">' + (p ? "Change photo" : "Choose photo") + '<input type="file" accept="image/*" class="hidden" data-photo-input aria-label="Choose a photo"></label>' +
       (p ? '<button type="button" class="btn sm" data-photo-clear>Remove photo</button>' : '<span class="note">Optional. Otherwise your initials are shown.</span>');
   }
+  // Touch devices honour capture="user"; desktops would just show the file picker twice.
+  function phoneCamera() { return window.matchMedia("(pointer: coarse)").matches; }
   function setPhotoField(row, p, name) {
     if (p != null) row.setAttribute("data-photo", p);
     if (name != null) row.setAttribute("data-name", name);
