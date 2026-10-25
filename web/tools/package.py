@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Builds web.zip (repo root) for Netlify Drop: only the files the site serves.
+With --dir, copies those files into a folder instead (Netlify's automatic deploys use this,
+see netlify.toml).
 
-Usage: python3 web/tools/package.py
+Usage: python3 web/tools/package.py [--dir OUT]
 """
 import hashlib
 import json
 import os
 import re
+import shutil
+import sys
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,8 +45,23 @@ def stamp_service_worker():
     return h.hexdigest()[:12]
 
 
+def copy_to(out):
+    """Copies the shipped files into out (emptied first), keeping their paths under web/."""
+    shutil.rmtree(out, ignore_errors=True)
+    for f in shipped():
+        dest = os.path.join(out, os.path.relpath(f, WEB))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(f, dest)
+    return len(shipped())
+
+
 def main():
     version = stamp_service_worker()
+    if "--dir" in sys.argv:
+        out = os.path.abspath(sys.argv[sys.argv.index("--dir") + 1])
+        n = copy_to(out)
+        print(f"copied {n} files to {out}, offline cache version fy-{version}")
+        return
     out = os.path.join(ROOT, "web.zip")
     n = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:

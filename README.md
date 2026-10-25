@@ -34,6 +34,15 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 >
 > Map data © OpenStreetMap contributors (ODbL). The illustrated board, station layout and landmark icons are original; no board artwork, scans or official station coordinates are used.
 
+### Automatic deploys on Netlify
+
+`netlify.toml` holds the build settings, so linking the repository once is enough:
+
+1. In Netlify, open the site → **Site configuration → Build & deploy → Continuous deployment → Link repository** (or **Add new site → Import an existing project** for a new site).
+2. Choose GitHub and this repository, branch `master`. Leave the build command and publish directory as they are; `netlify.toml` sets them (`python3 web/tools/package.py --dir dist`, publishing `dist`).
+
+Every push to `master` then deploys, and pull requests get preview links.
+
 ### Deploy on Netlify Drop
 
 1. Open <https://app.netlify.com/drop>.

@@ -1,0 +1,11 @@
+# Automatic deploys: Netlify runs this on every push to the linked branch (and for pull request
+# previews). It stamps the offline cache and publishes only the files the site serves.
+[build]
+  command = "python3 web/tools/package.py --dir dist"
+  publish = "dist"
+
+# The service worker must never be cached, or phones keep the old version of the game.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
