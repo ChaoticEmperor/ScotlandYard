@@ -36,12 +36,12 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 
 ### Automatic deploys on Netlify
 
-`netlify.toml` holds the build settings, so linking the repository once is enough:
+`.github/workflows/deploy.yml` deploys the site on every push to `master`; it can also be run by hand from the **Actions** tab (*Deploy to Netlify → Run workflow*). It runs the rule and protocol tests, builds `dist/` with `python3 web/tools/package.py --dir dist`, and publishes it with the Netlify CLI.
 
-1. In Netlify, open the site → **Site configuration → Build & deploy → Continuous deployment → Link repository** (or **Add new site → Import an existing project** for a new site).
-2. Choose GitHub and this repository, branch `master`. Leave the build command and publish directory as they are; `netlify.toml` sets them (`python3 web/tools/package.py --dir dist`, publishing `dist`).
+It needs two repository secrets (GitHub → **Settings → Secrets and variables → Actions**):
 
-Every push to `master` then deploys, and pull requests get preview links.
+- `NETLIFY_AUTH_TOKEN`: a personal access token from Netlify (**User settings → Applications → Personal access tokens**).
+- `NETLIFY_SITE_ID`: the site's ID (**Project configuration → General → Project ID**).
 
 ### Deploy on Netlify Drop
 
