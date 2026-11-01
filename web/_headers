@@ -1,0 +1,4 @@
+# Response headers for Cloudflare Pages (Netlify reads this file too).
+# The service worker must be fetched fresh so a new deploy's cache VERSION is picked up.
+/sw.js
+  Cache-Control: no-cache

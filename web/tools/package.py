@@ -11,7 +11,7 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WEB = os.path.join(ROOT, "web")
-SHIP = ["index.html", "sw.js", "manifest.webmanifest", "css", "js", "data", "assets"]
+SHIP = ["index.html", "sw.js", "manifest.webmanifest", "_headers", "css", "js", "data", "assets"]
 SKIP = {"map-london.jpg"}
 
 
@@ -27,7 +27,7 @@ def shipped():
 def stamp_service_worker():
     """Writes the offline file list and a content hash into sw.js, so each deploy refreshes the cache."""
     sw_path = os.path.join(WEB, "sw.js")
-    rel = [os.path.relpath(f, WEB).replace(os.sep, "/") for f in shipped() if not f.endswith("sw.js") and not f.endswith(".json")]
+    rel = [os.path.relpath(f, WEB).replace(os.sep, "/") for f in shipped() if not f.endswith("sw.js") and not f.endswith(".json") and not f.endswith("_headers")]
     h = hashlib.sha256()
     for f in sorted(rel):
         with open(os.path.join(WEB, f), "rb") as fh:

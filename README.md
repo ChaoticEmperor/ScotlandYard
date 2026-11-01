@@ -36,7 +36,18 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 >
 > Map data © OpenStreetMap contributors (ODbL). The illustrated board, station layout and landmark icons are original; no board artwork, scans or official station coordinates are used.
 
-### Deploy on Netlify
+### Deploy on Cloudflare Pages
+
+Cloudflare Pages builds the site from GitHub on every push to `master`, with free unlimited static deploys. One-time setup in the Cloudflare dashboard:
+
+1. **Workers & Pages → Create → Pages → Connect to Git**, then pick this repository.
+2. Production branch `master`. Framework preset **None**.
+3. Build command: `python3 web/tools/package.py && rm -rf site && python3 -m zipfile -e web.zip site`
+4. Build output directory: `site`
+5. **Save and Deploy.** The game is then at `https://<project-name>.pages.dev`.
+
+`web/_headers` stops browsers caching `sw.js`, so phones pick up each new version. Pull requests get preview links.
+
 
 Connect the repository in Netlify (*Add new site → Import an existing project*) and every push to `master` deploys automatically (live at https://davidson-yard.netlify.app). `netlify.toml` holds the settings: the build runs `python3 web/tools/package.py` (which stamps the offline cache) and publishes the files it packs, so `web/tests` and `web/tools` stay off the site.
 
