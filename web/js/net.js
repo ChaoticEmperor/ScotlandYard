@@ -793,12 +793,17 @@
     return { code: sess.code, players: players, roles: sess.lobbySeats.roles, settings: sess.settings, started: !!sess.state };
   }
 
-  // Seats from the lobby: one Mr. X, detective pawns shared round-robin between detective players.
+  // Extra detective pieces (more pieces than detective players) are played by the computer
+  // unless the game master chooses to share them, so each person controls exactly one detective.
+  function extraByComputer(st) { return st.extra !== "share"; }
+
+  // Seats from the lobby: one Mr. X, then one detective pawn per detective player; extra pawns go
+  // to the computer, or are shared round-robin between detective players.
   function seatsFromLobby(sess) {
     var roles = sess.lobbySeats.roles, ids = Object.keys(sess.players);
     var mrx = ids.filter(function (id) { return roles[id] === "x"; })[0];
     var dets = ids.filter(function (id) { return roles[id] === "det"; });
-    var n = sess.settings.nDet, pawns = [], ai = sess.settings.extra === "computer";
+    var n = sess.settings.nDet, pawns = [], ai = extraByComputer(sess.settings);
     // One piece per detective player first; extra pieces are shared out, or played by the computer.
     for (var i = 0; i < n; i++) pawns.push(i < dets.length ? dets[i] : ai ? "ai" : dets[i % dets.length]);
     return { mrx: mrx, pawns: pawns };
@@ -1038,7 +1043,7 @@
     var roles = info.roles, ids = Object.keys(info.players), n = info.settings.nDet;
     var dets = ids.filter(function (id) { return roles[id] === "det"; });
     if (!dets.length) return "";
-    var by = {}, ai = info.settings.extra === "computer", comp = [];
+    var by = {}, ai = extraByComputer(info.settings), comp = [];
     for (var i = 0; i < n; i++) {
       if (i >= dets.length && ai) { comp.push("D" + (i + 1)); continue; }
       (by[dets[i % dets.length]] = by[dets[i % dets.length]] || []).push("D" + (i + 1));
@@ -1108,7 +1113,7 @@
       h += piecesNote(sess, info);
       var prob = lobbyProblem(sess), dup = sameNamePlaying(sess, info);
       if (dup.length && !prob) h += '<p class="note" style="color:var(--bad);font-weight:700">' + FY.UI.esc(dup.join(", ")) + (dup.length > 1 ? " appear" : " appears") + " twice. If one person joined from two browsers (for example WhatsApp's browser and Safari), remove the extra one.</p>";
-      h += '<p class="note">' + (prob || "Ready. Detective pieces are shared out between detective players." + (st.nDet > 5 ? " More than 5 detectives is a big-group variant: Mr. X gets a black ticket for each one." : "")) + "</p>";
+      h += '<p class="note">' + (prob || "Ready. " + (extraByComputer(st) ? "Each detective player controls one piece; the computer plays any extra pieces." : "Detective pieces are shared out between detective players.") + (st.nDet > 5 ? " More than 5 detectives is a big-group variant: Mr. X gets a black ticket for each one." : "")) + "</p>";
       h += '<button class="btn pri big" data-net="start"' + (prob ? " disabled" : "") + ">Start game</button>";
     } else {
       h += piecesNote(sess, info);

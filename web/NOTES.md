@@ -395,3 +395,7 @@ Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo throug
 
 - **How it happens.** A player is recognised by their browser's saved data, not an account. One tab can't hold two seats (a second tab takes the seat over), and a seat that goes silent is marked offline after 30 s, which blocks *Start*. So a person who ends up with two detectives had two live copies of the game open in browsers with separate storage: typically the invite opened in WhatsApp's or Instagram's built-in browser and then again in Safari or Chrome (an iPhone's home-screen app is separate from Safari too).
 - **Now flagged.** Players whose names match (ignoring case and spaces) show *same name twice* in every lobby, the game master gets a warning above *Start game*, and pressing Start asks first ("Start anyway" or "Go back"), so two real people called Sam can still play. *Remove* clears the extra seat.
+
+## One piece per person by default
+
+- With fewer detective players than pieces (the board has at least 5), the extra pieces used to be shared out, so one tab controlled two or three detectives. Players took that for a bug. Now the computer plays the extra pieces by default, so each person controls exactly one detective. The game master can still pick *Extra detective pieces → Shared by players* in the lobby, and can still hand an absent player's pieces to someone mid-game.
