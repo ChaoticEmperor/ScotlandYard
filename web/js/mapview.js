@@ -289,11 +289,15 @@
       if (!t.n) return;
       keep[t.id] = 1;
       var p = self.b.pos[t.n], key = JSON.stringify([t.label, t.photo, t.color, t.ring, t.text, t.ghost, t.halo, t.tag]);
-      var g = self.toks[t.id];
+      var g = self.toks[t.id], fresh = !g, moved = g && g._n !== t.n;
       if (!g) { g = self.toks[t.id] = el("g", { "class": "tok" }, self.tokLayer); g.setAttribute("transform", "translate(" + p.x + " " + p.y + ")"); }
+      g._n = t.n;
       if (g._key !== key) {
         self.clear(g); g._key = key;
-        g.setAttribute("class", "tok" + (t.ghost ? " ghost" : ""));
+        // Drawn into an inner group, so it can pop or bounce while the outer one glides.
+        var outer = g;
+        outer.setAttribute("class", "tok" + (t.ghost ? " ghost" : ""));
+        g = outer._in = el("g", { "class": "tokin" + (fresh ? " pop" : "") }, outer);
         if (t.halo) el("circle", { r: t.photo ? 24 : 21, "class": "tokhalo" }, g);
         if (t.photo) {
           // A photo piece is a little bigger and wears a thick ring in the detective's colour
@@ -320,7 +324,10 @@
           var tg = el("text", { y: ty + 6.5, "class": "toktag" }, g);
           tg.textContent = t.tag;
         }
+        g = outer;
       }
+      // A piece that moved bounces as it lands (after its .35 s glide).
+      if (moved && g._in) self.land(g._in);
       g.style.transform = "translate(" + p.x + "px, " + p.y + "px)";
       g.removeAttribute("transform");
       self.tokLayer.appendChild(g); // keep drawing order as given
@@ -328,6 +335,22 @@
     Object.keys(this.toks).forEach(function (id) {
       if (!keep[id]) { self.tokLayer.removeChild(self.toks[id]); delete self.toks[id]; }
     });
+  };
+
+  MapView.prototype.land = function (inner) {
+    setTimeout(function () {
+      inner.classList.remove("land", "pop");
+      void inner.getBoundingClientRect(); // restart the animation
+      inner.classList.add("land");
+    }, 330);
+  };
+  // Expanding rings on a station, for a Mr. X sighting.
+  MapView.prototype.pulse = function (n, color) {
+    var p = this.b.pos[n];
+    if (!p) return;
+    var g = el("g", { transform: "translate(" + p.x + " " + p.y + ")", "class": "fx" }, this.tokLayer);
+    [0, 0.35].forEach(function (d) { var c = el("circle", { r: 18, "class": "fxring", stroke: color || "#e0b341" }, g); c.style.animationDelay = d + "s"; });
+    setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 2000);
   };
 
   // One circular clip for photo pieces, per map (ids must be unique on the page).

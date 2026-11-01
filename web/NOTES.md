@@ -399,3 +399,15 @@ Test: the mixed game in `tests/online-smoke.cjs` (`FY_GM=1`) adds a photo throug
 ## One piece per person by default
 
 - With fewer detective players than pieces (the board has at least 5), the extra pieces used to be shared out, so one tab controlled two or three detectives. Players took that for a bug. Now the computer plays the extra pieces by default, so each person controls exactly one detective. The game master can still pick *Extra detective pieces → Shared by players* in the lobby, and can still hand an absent player's pieces to someone mid-game.
+
+## Polish pass (game UI and game-feel checklists)
+
+Audited with the UI, game-feel and QA checklists from majidmanzarpour/threejs-game-skills (the 3D, shader and asset-generation parts don't apply to an SVG board). Measured on every screen at phone and desktop widths: no errors and no sideways scrolling before or after.
+
+- **Tips no longer cover moves.** The tip box now sits in the layout between the travel log and the views (on wide screens at the top of the side panel), so it pushes content down instead of floating over 4-9 move buttons.
+- **Underground cards.** "Underground" has a soft hyphen and the label may wrap, so the map button stays inside the card (it stuck out by up to 14 px at 412 px).
+- **Touch targets.** Detective picker and log filter chips, small buttons, the map button on move cards, *Got it* and the text links are now at least 44 px.
+- **Names wrap** in the lobby and lists instead of being cut off.
+- **Sound** (`js/sfx.js`): short sounds synthesised with Web Audio, so there are no files and they work offline: a tick per move, a chime when the turn passes to you (once per round), a rising sting on a Mr. X sighting, a chord on a capture and a falling phrase when he escapes. Settings → *Sound effects*. Audio starts on the first tap, as browsers require.
+- **Big moments.** A sighting pulses gold rings on the station and vibrates. The end shows a short full-screen card ("Caught at 67!" with the catching detective's badge or photo, or "Moriarty escaped!") over a flash, with a strong vibration, before the end dialog. Pieces pop in at the start and bounce when they land. All motion respects the reduced-motion setting.
+- **Driven by the history**, so solo and online games behave the same; rejoining or loading a game plays nothing but the ending.
