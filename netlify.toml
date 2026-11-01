@@ -1,12 +1,17 @@
-# Static site: Find Mr. X is web/, with no build step. package.py stamps the offline cache in
-# sw.js and packs only the files the site serves into web.zip; we publish that, unpacked, so
-# web/tests, web/tools and the notes stay off the site. Online games go through PeerJS, so
-# there is no server to deploy.
+# Find Mr. X moved to Cloudflare Pages (https://scotlandyard-98u.pages.dev), which builds the game
+# itself from this repository. Netlify now publishes only netlify-moved/, which sends players
+# there: index.html for the home page, sw.js to clear the old offline cache on returning
+# phones, and a 301 redirect for every other path. Cloudflare Pages ignores this file.
 [build]
-  command = "python3 web/tools/package.py && rm -rf site && python3 -m zipfile -e web.zip site"
-  publish = "site"
+  command = ""
+  publish = "netlify-moved"
 
-# The service worker must be fetched fresh so a new deploy's cache VERSION is picked up.
+[[redirects]]
+  from = "/*"
+  to = "https://scotlandyard-98u.pages.dev/:splat"
+  status = 301
+
+# The replacement service worker must be fetched fresh so returning phones pick it up.
 [[headers]]
   for = "/sw.js"
   [headers.values]
