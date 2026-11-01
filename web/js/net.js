@@ -976,22 +976,25 @@
   }
 
   // ------------------------------------------------------------------ screens
-  function openHome(msg) {
+  function openHome(msg, joinCode) {
     FY.UI.show("online");
     var hostSaved = S.get("host", null), guestSaved = S.get("guest", null), st = S.settings();
     var ok = transport().available();
     var h = '<button class="linkbtn back" data-net="back">&larr; Back</button><h2 class="disp">Play online</h2>' +
+      (joinCode ? '<p class="note" style="color:var(--ink);font-weight:700">Joining game ' + FY.UI.esc(joinCode) + ". Check your name, then tap <b>Join game</b>.</p>" : "") +
       (msg ? '<p class="note" style="color:var(--bad);font-weight:700">' + FY.UI.esc(msg) + "</p>" : "") +
       FY.UI.photoField(st.photo, st.alias || st.name) +
       '<input class="txt" id="nName" maxlength="16" placeholder="Your name" autocomplete="nickname" aria-label="Your name" value="' + FY.UI.esc(st.name || "") + '">' +
       '<input class="txt" id="nAlias" maxlength="20" placeholder="Alias for your role (optional, e.g. Moriarty)" aria-label="Alias (optional)" value="' + FY.UI.esc(st.alias || "") + '">' +
       '<button class="role" data-net="host"' + (ok ? "" : " disabled") + "><b>Host a game</b><span>You're the game master: share a code, hand out roles, and play Mr. X, a detective, or just referee.</span></button>" +
-      '<div class="joinrow"><input id="nCode" maxlength="' + C.net.codeLength + '" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code"><button class="btn pri" data-net="join"' + (ok ? "" : " disabled") + ">Join game</button></div>" +
+      (canScan() ? '<button class="btn" data-net="scan"' + (ok ? "" : " disabled") + '>&#128247; Scan QR code to join</button>' : "") +
+      '<div class="joinrow"><input id="nCode" maxlength="' + C.net.codeLength + '" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code" value="' + FY.UI.esc(joinCode || "") + '"><button class="btn pri" data-net="join"' + (ok ? "" : " disabled") + ">Join game</button></div>" +
       (hostSaved && hostSaved.code && !hostSaved.over ? '<button class="btn" data-net="resume">Resume hosting game ' + hostSaved.code + "</button>" : "") +
       (guestSaved && guestSaved.code ? '<button class="btn" data-net="rejoin">Rejoin game ' + guestSaved.code + "</button>" : "") +
       (navigator.onLine === false ? '<p class="note" style="color:var(--bad);font-weight:700">You\'re offline. Online games need an internet connection on every phone; solo games work offline.</p>' : "") +
       '<p class="note">' + (ok ? "Players connect directly to each other. If a friend can't connect, try the same Wi-Fi or turn off a VPN; the site owner can also add a TURN server in js/config.js." : "Online play couldn't load (check your connection and reload).") + "</p>";
     $("#onlineInner").innerHTML = h;
+    if (joinCode) { var nm = $("#nName"); if (nm && !nm.value) nm.focus(); }
   }
   function nameValue() {
     var v = cleanName($("#nName") && $("#nName").value, 16), a = cleanName($("#nAlias") && $("#nAlias").value, 20);
@@ -1069,6 +1072,7 @@
     var host = sess.role === "host", info = host ? lobbyInfo(sess) : sess.lobby;
     var h = '<button class="linkbtn back" data-net="leave">&larr; Leave</button><h2 class="disp">Game lobby</h2>';
     h += '<div class="codebig" aria-label="Game code">' + sess.code + "</div>";
+    h += '<div class="qrwrap"><div class="qr" id="qrBox" aria-label="QR code to join this game"></div><p class="note">Friends can scan this with their phone camera to open the game with the code filled in, or tap <b>Share invite</b> to send the link.</p></div>';
     h += '<div class="row"><button class="btn grow" data-net="share">Share invite</button></div>';
     if (!info) { $("#onlineInner").innerHTML = h + '<p class="note">' + (sess.offline ? "Connecting…" : "Waiting for the game master…") + "</p>"; return; }
     var roleNames = { x: "Mr. X", det: "Detective", watch: "Watching" };
@@ -1079,7 +1083,9 @@
     Object.keys(info.players).forEach(function (id) {
       var p = info.players[id], r = info.roles[id] || "det", di = detIds.indexOf(id);
       var col = r === "x" ? "#111" : di >= 0 ? FY.UI.DCOL[di % FY.UI.DCOL.length] : "#78716c";
-      h += '<div class="pl">' + FY.UI.avatar(p.alias || p.name, photoOf(sess, id), col) + '<span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
+      // Players who arrived in the last moment slide in (the lobby redraws several times as they join).
+      var isNew = sess.lobbySeen && (!sess.lobbySeen[id] || Date.now() - sess.lobbySeen[id] < 350);
+      h += '<div class="pl' + (isNew ? " new" : "") + '">' + FY.UI.avatar(p.alias || p.name, photoOf(sess, id), col) + '<span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
         (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : host ? '<button class="btn sm" data-net="kick" data-pid="' + id + '" aria-label="Remove ' + FY.UI.esc(p.name) + '">Remove</button>' : "") +
         (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>') +
         (twice[id] ? '<span class="off" title="Maybe the same person joined from two browsers">same name twice</span>' : "");
@@ -1121,6 +1127,145 @@
       h += '<p class="note">' + (sess.offline ? "Connection lost. Reconnecting…" : "Waiting for the game master to start.") + " Compare the 🔑 fingerprints out loud to be sure nobody is impersonated.</p>";
     }
     $("#onlineInner").innerHTML = h;
+    var first = !sess.lobbySeen, seen = sess.lobbySeen || {};
+    sess.lobbySeen = {};
+    Object.keys(info.players).forEach(function (id) { sess.lobbySeen[id] = seen[id] || (first ? 1 : Date.now()); });
+    drawQr(sess.code);
+  }
+
+  // ------------------------------------------------------------------ scan to join
+  // The camera reads the lobby's QR code (or any invite link) and joins that game. Browsers with a
+  // built-in QR reader (BarcodeDetector, e.g. Chrome on Android) use it; others load jsQR,
+  // pinned, only when Scan is tapped.
+  var JSQR_LIB = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js", jsqrLoad = null;
+  function loadJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    if (!jsqrLoad) jsqrLoad = new Promise(function (resolve) {
+      var s = document.createElement("script");
+      s.src = JSQR_LIB;
+      s.onload = function () { resolve(window.jsQR || null); };
+      s.onerror = function () { jsqrLoad = null; resolve(null); };
+      document.head.appendChild(s);
+    });
+    return jsqrLoad;
+  }
+  function canScan() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext !== false; }
+  // A game code from a scanned invite link (?join=CODE) or a bare code; null for anything else.
+  function codeFromScan(text) {
+    var t = String(text || "").trim();
+    try { var j = new URL(t).searchParams.get("join"); if (j) t = j; } catch (e) {}
+    t = t.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return t.length === C.net.codeLength ? t : null;
+  }
+  function scanDialog() {
+    var stream = null, timer = null, done = false, detector = null, decode = null;
+    FY.UI.overlay('<h2 class="disp">Scan to join</h2><p class="note" id="scNote">Point the camera at the QR code in the game master\'s lobby.</p>' +
+      '<div class="scanbox"><video id="scVideo" playsinline muted autoplay></video><div class="scanframe"></div></div>' +
+      '<button class="btn" data-act="close">Cancel</button>', function (card) {
+      var video = card.querySelector("#scVideo"), note = card.querySelector("#scNote");
+      var canvas = document.createElement("canvas"), g = canvas.getContext("2d", { willReadFrequently: true }), wrongAt = 0;
+      function stop() {
+        done = true;
+        clearTimeout(timer);
+        clearInterval(watch);
+        if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+        stream = null;
+      }
+      // The camera turns off as soon as the dialog closes or shows something else.
+      var watch = setInterval(function () { if ($("#overlay").classList.contains("hidden") || !card.contains(video)) stop(); }, 300);
+      function say(text) { note.textContent = text; note.style.color = "var(--bad)"; note.style.fontWeight = "700"; }
+      function found(code) {
+        stop();
+        FY.SFX.play("turn");
+        FY.SFX.buzz(30);
+        FY.UI.closeLayers();
+        var box = $("#nCode");
+        if (box) box.value = code;
+        joinGame(code, nameValue());
+      }
+      function result(text) {
+        var code = text && codeFromScan(text);
+        if (code) return found(code);
+        if (text && Date.now() - wrongAt > 2500) { wrongAt = Date.now(); say("That QR code isn't a Find Mr. X invite. Scan the one in the game master's lobby."); }
+        next();
+      }
+      function next() { if (!done) timer = setTimeout(tick, 180); }
+      function tick() {
+        if (done) return;
+        if (video.readyState < 2 || !decode) return next();
+        decode().then(result, next);
+      }
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false }).then(function (s) {
+        stream = s;
+        if (done) return stop();
+        video.srcObject = s;
+        var p = video.play();
+        if (p && p.catch) p.catch(function () {});
+        var native = "BarcodeDetector" in window ? window.BarcodeDetector.getSupportedFormats().then(function (f) { return f.indexOf("qr_code") >= 0; }, function () { return false; }) : Promise.resolve(false);
+        return native.then(function (ok) {
+          if (ok) {
+            detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+            decode = function () { return detector.detect(video).then(function (codes) { return codes.length ? codes[0].rawValue : null; }); };
+            return;
+          }
+          return loadJsQR().then(function (jsQR) {
+            if (!jsQR) return say("Couldn't load the QR reader. Check your connection, or type the code instead.");
+            decode = function () {
+              var w = video.videoWidth, h = video.videoHeight, k = Math.min(1, 640 / Math.max(w, h));
+              canvas.width = Math.round(w * k);
+              canvas.height = Math.round(h * k);
+              g.drawImage(video, 0, 0, canvas.width, canvas.height);
+              var r = jsQR(g.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
+              return Promise.resolve(r ? r.data : null);
+            };
+          });
+        }).then(next);
+      }, function (err) {
+        var n = err && err.name;
+        say(n === "NotAllowedError" ? "Camera access was blocked. Allow the camera for this site in your browser settings, or type the code instead." :
+          n === "NotFoundError" || n === "OverconstrainedError" ? "No camera was found on this device. Type the code instead." :
+          "The camera couldn't start. Type the code instead.");
+      });
+    });
+  }
+
+  // ------------------------------------------------------------------ invites
+  // The join link: this site with ?join=CODE (keeping the test transport on local test pages).
+  function inviteUrl(code) {
+    var q = new URLSearchParams(), t = new URLSearchParams(location.search).get("transport");
+    if (t) q.set("transport", t);
+    q.set("join", code);
+    return location.origin + location.pathname + "?" + q.toString();
+  }
+  // The QR library (pinned, from jsDelivr like PeerJS) loads only when a lobby is shown. Without
+  // it (offline, blocked) the QR box is simply hidden; the code and Share invite still work.
+  var QR_LIB = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js", qrLoad = null, qrSvg = {};
+  function loadQr() {
+    if (window.qrcode) return Promise.resolve(window.qrcode);
+    if (!qrLoad) qrLoad = new Promise(function (resolve) {
+      var s = document.createElement("script");
+      s.src = QR_LIB;
+      s.onload = function () { resolve(window.qrcode || null); };
+      s.onerror = function () { qrLoad = null; resolve(null); };
+      document.head.appendChild(s);
+    });
+    return qrLoad;
+  }
+  function drawQr(code) {
+    var box = $("#qrBox");
+    if (!box) return;
+    var url = inviteUrl(code);
+    if (qrSvg[url]) { box.innerHTML = qrSvg[url]; return; }
+    loadQr().then(function (qrcode) {
+      box = $("#qrBox");
+      if (!box) return;
+      if (!qrcode) { box.parentNode.classList.add("hidden"); return; }
+      var q = qrcode(0, "M");
+      q.addData(url);
+      q.make();
+      qrSvg[url] = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      box.innerHTML = qrSvg[url];
+    });
   }
 
   // Game master: hand pieces to other players or the computer, remove a player who left, or end
@@ -1232,6 +1377,7 @@
     if (a === "canceledit") { ui_edit = false; return renderLobby(); }
     if (a === "saveme" && sess) { ui_edit = false; setProfile(sess, $("#eName").value, $("#eAlias").value, FY.UI.photoValue($("#onlineInner"))); return renderLobby(); }
     if (a === "host") return startHosting(null);
+    if (a === "scan") return scanDialog();
     if (a === "resume") return startHosting(S.get("host", null));
     if (a === "join") {
       var code = ($("#nCode").value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -1242,7 +1388,7 @@
     if (a === "leave") { if (sess) sess.close(); current = null; S.set("resume", null); if (sess && sess.role === "host") S.set("host", null); return openHome(); }
     if (a === "share" && sess) {
       var txt = "Join my Find Mr. X game with code " + sess.code;
-      var url = location.href.split("?")[0].split("#")[0];
+      var url = inviteUrl(sess.code);
       if (navigator.share) navigator.share({ title: "Find Mr. X", text: txt, url: url }).catch(function () {});
       else if (navigator.clipboard) navigator.clipboard.writeText(txt + " at " + url).then(function () { FY.UI.toast("Invite copied", txt); }, function () {});
       return;
@@ -1293,6 +1439,12 @@
     open: function () {
       if (current && !current.closed) { if (current.state && current.ctl) FY.UI.enterGame(current.ctl); else renderLobby(); return; }
       openHome();
+    },
+    // Opened from an invite link or QR code (?join=CODE): the online screen with the code filled in.
+    joinFromLink: function (code) {
+      code = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, C.net.codeLength);
+      if (code.length !== C.net.codeLength) return openHome();
+      openHome(null, code);
     },
     get session() { return current; },
     _audit: audit, _verify: verifyEntry, _sign: signEntry, _apply: applyEntry, _keys: genKeys, _sha: sha256, _commit: commitStr

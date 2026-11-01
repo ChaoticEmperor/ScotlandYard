@@ -252,6 +252,10 @@
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
     ui.fxSeen = c.s ? c.s.history.length : 0;
     ui.turnChimed = null;
+    ui.moveKey = null;
+    ui.statusH = null;
+    ui.movesAt = 0;
+    ui.statusAt = 0;
     clearMoment();
     show("game");
     ensureMaps();
@@ -553,6 +557,19 @@
     var root = $("#vPlay"), scroll = root.scrollTop;
     root.innerHTML = h;
     root.scrollTop = scroll;
+    // Animate only real changes: the move cards when the choice of moves changes, the status
+    // card when its heading changes (not on every refresh from the network).
+    // The panel is often redrawn again within the animation, so a redraw continues it from where
+    // it was (a negative delay) instead of restarting it.
+    var moveKey = who ? who + selectedDet() + ":" + groupByStation(currentOptions()).map(function (g) { return g.to; }).join(",") : "";
+    var now = Date.now();
+    if (moveKey && moveKey !== ui.moveKey) ui.movesAt = now;
+    if (ui.statusH != null && st.h !== ui.statusH) ui.statusAt = now;
+    ui.moveKey = moveKey;
+    ui.statusH = st.h;
+    var mvs = root.querySelector(".moves"), stc = root.querySelector(".status");
+    if (mvs && now - (ui.movesAt || 0) < 500) { mvs.classList.add("fresh"); mvs.style.setProperty("--el", ui.movesAt - now + "ms"); }
+    if (stc && now - (ui.statusAt || 0) < 400) { stc.classList.add("bump"); stc.style.animationDelay = ui.statusAt - now + "ms"; }
     mountMini();
     var pt = $("#pTactical");
     if (pt) pt.onchange = function () { settings = S.saveSetting("tactical", this.checked); render(); };
@@ -1017,8 +1034,14 @@
     $("#tabs").onclick = function (e) { var b = e.target.closest("[data-tab]"); if (b) setTab(b.getAttribute("data-tab")); };
     refreshMenu();
     if (!S.works()) toast("Games won't be saved", "This browser isn't keeping data (a private window?), so a refresh will lose your game.");
-    // After a refresh, go straight back to the game this device was in.
-    var r = S.get("resume", null);
+    // After a refresh, go straight back to the game this device was in. An invite link
+    // (?join=CODE) opens the online screen with that code, unless it's the game already resumed.
+    var r = S.get("resume", null), q = new URLSearchParams(location.search), join = q.get("join");
+    if (join) {
+      q.delete("join");
+      try { history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q.toString() : "") + location.hash); } catch (e) {}
+      if (FY.Net && !(r && r.code === join.toUpperCase())) { setTimeout(function () { FY.Net.joinFromLink(join); }, 0); r = null; }
+    }
     if (r && r.kind === "solo" && S.get("solo", null)) continueSolo();
     else if (r && (r.kind === "host" || r.kind === "guest") && FY.Net) setTimeout(function () { FY.Net.autoResume(r); }, 0);
     $("#painting").classList.remove("hidden");

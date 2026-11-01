@@ -250,3 +250,44 @@ table.stats th:first-child, table.stats td:first-child { text-align: left; }
 .piece .pdot, .chip .dot { overflow: hidden; }
 .photorow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
 .photorow label.btn { cursor: pointer; }
+
+/* ---------- motion: screens, dialogs, tips, tabs, cards, presses (off with reduced motion) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .screen:not(.hidden) { animation: fy-screen .24s ease-out; }
+  #game:not(.hidden) { animation: fy-fade .24s ease-out; }
+  #overlay:not(.hidden), #sheet:not(.hidden) { animation: fy-fade .18s ease-out; }
+  #overlay:not(.hidden) #overlayCard { animation: fy-rise .26s cubic-bezier(.2, .9, .3, 1.15); }
+  #sheet:not(.hidden) #sheetCard { animation: fy-slide-up .26s cubic-bezier(.2, .9, .3, 1); }
+  #toast:not(.hidden) { animation: fy-drop .28s cubic-bezier(.2, .9, .3, 1.15); }
+  #game[data-tab="play"] #vPlay, #game[data-tab="map"] #vMap, #game[data-tab="log"] #vLog { animation: fy-fade .2s ease-out; }
+  /* Cards appear one after another; --el (set by the script) continues the animation after a redraw. */
+  .moves.fresh .mv { animation: fy-card .3s cubic-bezier(.2, .9, .3, 1.1) both; animation-delay: calc(var(--k, 0ms) + var(--el, 0ms)); }
+  .moves.fresh .mv:nth-child(2) { --k: 40ms; } .moves.fresh .mv:nth-child(3) { --k: 80ms; }
+  .moves.fresh .mv:nth-child(4) { --k: 120ms; } .moves.fresh .mv:nth-child(5) { --k: 160ms; }
+  .moves.fresh .mv:nth-child(n+6) { --k: 200ms; }
+  .status.bump { animation: fy-bump .4s ease-out; }
+  .pl.new { animation: fy-card .32s cubic-bezier(.2, .9, .3, 1.1) both; }
+  .qr svg { animation: fy-fade .3s ease-out; }
+  .btn, .role, button.chip, .mv .tkb button, .mv .see, #tabs button, .ib, .seg button { transition: transform .1s ease, background-color .15s, border-color .15s, box-shadow .15s; }
+  .btn:active, .role:active, button.chip:active, .mv .tkb button:active, .mv .see:active, .seg button:active, .ib:active { transform: scale(.96); }
+}
+@keyframes fy-screen { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fy-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fy-rise { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes fy-slide-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fy-drop { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+@keyframes fy-card { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes fy-bump { 0% { transform: scale(1); } 35% { transform: scale(1.02); box-shadow: 0 0 0 3px var(--brass); } 100% { transform: scale(1); } }
+
+/* Lobby invite QR code */
+.qrwrap { display: flex; align-items: center; gap: 12px; margin: 4px 0 8px; }
+.qr { width: 132px; height: 132px; flex: none; background: #fff; border-radius: 10px; padding: 6px; border: 1.5px solid var(--line); }
+.qr svg { width: 100%; height: 100%; display: block; }
+.qrwrap .note { margin: 0; }
+
+/* Scan to join: the camera view with a frame to aim at */
+.scanbox { position: relative; width: 100%; max-width: 360px; aspect-ratio: 1; margin: 6px auto 12px; border-radius: 14px; overflow: hidden; background: #000; }
+.scanbox video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scanframe { position: absolute; inset: 16%; border-radius: 12px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); border: 3px solid rgba(255, 255, 255, .9); }
+@media (prefers-reduced-motion: no-preference) { .scanframe { animation: fy-scan 1.6s ease-in-out infinite; } }
+@keyframes fy-scan { 50% { transform: scale(.94); border-color: var(--brass); } }
