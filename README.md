@@ -28,7 +28,7 @@ This is a project build during the "Software Engeneering" lecture at the HTWG Ko
 
 ## Find Mr. X (web version)
 
-**Play:** https://davidson-yard.netlify.app
+**Play:** https://scotlandyard-98u.pages.dev
 
 `web/` contains **Find Mr. X**, a mobile-first browser version of the game, playable solo or online with 2 to 11 players (Mr. X plus up to 10 detectives; more people can join to watch). It is a static site: plain HTML, CSS and JavaScript with no build step and no frameworks. The only external scripts are PeerJS 1.5.4 and the Oswald font, both from jsDelivr and pinned to exact versions.
 
@@ -49,17 +49,17 @@ Cloudflare Pages builds the site from GitHub on every push to `master`, with fre
 `web/_headers` stops browsers caching `sw.js`, so phones pick up each new version. Pull requests get preview links.
 
 
-Connect the repository in Netlify (*Add new site → Import an existing project*) and every push to `master` deploys automatically (live at https://davidson-yard.netlify.app). `netlify.toml` holds the settings: the build runs `python3 web/tools/package.py` (which stamps the offline cache) and publishes the files it packs, so `web/tests` and `web/tools` stay off the site.
+### Old Netlify address
 
-### Deploy on Netlify Drop
+The game moved from Netlify (https://davidson-yard.netlify.app) to Cloudflare Pages. `netlify.toml` now makes Netlify publish only `netlify-moved/`: a page and a 301 redirect for every path that send players to `https://scotlandyard-98u.pages.dev`, and a replacement `sw.js` that clears the old offline cache on phones that played there before, so they reach the new address too.
 
-1. Open <https://app.netlify.com/drop>.
-2. Drag **`web.zip`** (in the repository root) onto the page. Dragging the `web` folder also works.
-3. Netlify gives you a public `https://…netlify.app` address. Share it with your players.
+### Manual upload
+
+`web.zip` (in the repository root) holds exactly the files the site serves. Any static host that takes a zip or a folder works, for example Cloudflare Pages' *Upload assets* or Netlify Drop.
 
 After one visit with internet, the site is saved on the phone: solo games then work fully offline. Online games still need internet. "Add to Home Screen" installs it like an app.
 
-The site needs HTTPS for online play, which Netlify provides. For a quick local try, open `web/index.html` directly: solo play works from `file://`. To serve it locally, any static server works, e.g. `cd web && python3 -m http.server`.
+The site needs HTTPS for online play, which Cloudflare Pages provides. For a quick local try, open `web/index.html` directly: solo play works from `file://`. To serve it locally, any static server works, e.g. `cd web && python3 -m http.server`.
 
 To rebuild `web.zip` after changes, run `python3 web/tools/package.py`.
 
