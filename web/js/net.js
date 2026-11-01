@@ -803,6 +803,24 @@
     for (var i = 0; i < n; i++) pawns.push(i < dets.length ? dets[i] : ai ? "ai" : dets[i % dets.length]);
     return { mrx: mrx, pawns: pawns };
   }
+  // Players sharing a name (ignoring case and spaces). Usually one person who joined from two
+  // browsers, each with its own saved identity (e.g. WhatsApp's in-app browser and Safari).
+  function nameKey(p) { return String(p.name || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+  function sameNames(players) {
+    var by = {}, out = {};
+    Object.keys(players).forEach(function (id) { var k = nameKey(players[id]); if (k) (by[k] = by[k] || []).push(id); });
+    Object.keys(by).forEach(function (k) { if (by[k].length > 1) by[k].forEach(function (id) { out[id] = true; }); });
+    return out;
+  }
+  // Names that appear more than once among players with a role (Mr. X or detective).
+  function sameNamePlaying(sess, info) {
+    var playing = {}, names = [];
+    Object.keys(info.players).forEach(function (id) { if (info.roles[id] && info.roles[id] !== "watch") playing[id] = info.players[id]; });
+    var twice = sameNames(playing);
+    var seen = {};
+    Object.keys(twice).forEach(function (id) { var k = nameKey(info.players[id]); if (!seen[k]) { seen[k] = 1; names.push(info.players[id].name.trim()); } });
+    return names;
+  }
   function lobbyProblem(sess) {
     var roles = sess.lobbySeats.roles, ids = Object.keys(sess.players);
     var xs = ids.filter(function (id) { return roles[id] === "x"; }), ds = ids.filter(function (id) { return roles[id] === "det"; });
@@ -1052,12 +1070,14 @@
     h += '<div class="sect">Players</div><div class="plist">';
     // Badges use the colour each player's pieces will have: detectives in lobby order, Mr. X black.
     var detIds = Object.keys(info.players).filter(function (id) { return info.roles[id] === "det"; });
+    var twice = sameNames(info.players);
     Object.keys(info.players).forEach(function (id) {
       var p = info.players[id], r = info.roles[id] || "det", di = detIds.indexOf(id);
       var col = r === "x" ? "#111" : di >= 0 ? FY.UI.DCOL[di % FY.UI.DCOL.length] : "#78716c";
       h += '<div class="pl">' + FY.UI.avatar(p.alias || p.name, photoOf(sess, id), col) + '<span class="who">' + FY.UI.esc(p.alias ? p.alias + " (" + p.name + ")" : p.name) + (id === sess.myId ? " · you" : "") + (id === "host" ? " · game master" : "") + "</span>" +
         (id === sess.myId ? '<button class="btn sm" data-net="editme">Edit</button>' : host ? '<button class="btn sm" data-net="kick" data-pid="' + id + '" aria-label="Remove ' + FY.UI.esc(p.name) + '">Remove</button>' : "") +
-        (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>');
+        (p.fp ? '<span class="note" title="Key fingerprint">🔑 ' + p.fp + "</span>" : "") + (p.online ? "" : '<span class="off">offline</span>') +
+        (twice[id] ? '<span class="off" title="Maybe the same person joined from two browsers">same name twice</span>' : "");
       if (host) {
         h += '<div class="seg" style="flex-basis:100%">' + ["x", "det", "watch"].map(function (k) {
           return '<button type="button" aria-checked="' + (r === k) + '" data-role="' + k + '" data-pid="' + id + '">' + roleNames[k] + "</button>";
@@ -1086,7 +1106,8 @@
       h += '<label class="switch"><input type="checkbox" data-net="gmsees"' + (st.gmSeesX && hostRole === "watch" ? " checked" : "") + (hostRole === "watch" ? "" : " disabled") + "><span>Game master can watch Mr. X" + (hostRole === "watch" ? " (everyone is told)" : " (only when you're watching, not playing)") + "</span></label>";
       h += '<div class="row"><button class="btn grow" data-net="shuffle">Random Mr. X</button></div>';
       h += piecesNote(sess, info);
-      var prob = lobbyProblem(sess);
+      var prob = lobbyProblem(sess), dup = sameNamePlaying(sess, info);
+      if (dup.length && !prob) h += '<p class="note" style="color:var(--bad);font-weight:700">' + FY.UI.esc(dup.join(", ")) + (dup.length > 1 ? " appear" : " appears") + " twice. If one person joined from two browsers (for example WhatsApp's browser and Safari), remove the extra one.</p>";
       h += '<p class="note">' + (prob || "Ready. Detective pieces are shared out between detective players." + (st.nDet > 5 ? " More than 5 detectives is a big-group variant: Mr. X gets a black ticket for each one." : "")) + "</p>";
       h += '<button class="btn pri big" data-net="start"' + (prob ? " disabled" : "") + ">Start game</button>";
     } else {
@@ -1228,7 +1249,14 @@
       ids.forEach(function (k) { sess.lobbySeats.roles[k] = k === x ? "x" : "det"; });
       return broadcastLobby(sess);
     }
-    if (a === "start" && sess && !lobbyProblem(sess)) return hostStartGame(sess);
+    if (a === "start" && sess && !lobbyProblem(sess)) {
+      var dup = sameNamePlaying(sess, lobbyInfo(sess));
+      if (!dup.length) return hostStartGame(sess);
+      return FY.UI.overlay('<h2 class="disp">Same name twice</h2><p class="note">' + FY.UI.esc(dup.join(", ")) + (dup.length > 1 ? " appear" : " appears") + " twice in the lobby. That is usually one person who joined from two browsers, and they would get two seats. If they are really different people, start anyway.</p>" +
+        '<div class="row"><button class="btn pri grow" id="dupGo">Start anyway</button><button class="btn grow" data-act="close">Go back</button></div>', function (card) {
+        card.querySelector("#dupGo").onclick = function () { FY.UI.closeLayers(); if (current === sess && !lobbyProblem(sess)) hostStartGame(sess); };
+      });
+    }
   });
   document.addEventListener("change", function (e) {
     var t = e.target;
