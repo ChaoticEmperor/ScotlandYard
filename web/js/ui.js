@@ -10,7 +10,7 @@
     black: { n: "Black", s: "?" }, double: { n: "Double", s: "2×" }, ferry: { n: "Ferry", s: "F" }
   };
   var DCOL = ["#2563eb", "#db2777", "#7c3aed", "#ea580c", "#0e7490", "#a16207", "#475569", "#15803d", "#9f1239", "#1e3a8a"];
-  var KIND = { taxi: "Taxi stop", bus: "Bus stop", underground: "Underground" };
+  var KIND = { taxi: "Taxi stop", bus: "Bus stop", underground: "Under\u00adground" }; // soft hyphen: wraps in narrow move cards
 
   var board, scene, bg = null, mv = null, mini = null, ctl = null;
   var ui = { tab: "play", sel: -1, armDouble: false, filter: "all", replay: null, toastQ: [], lastTurnKey: "" };
@@ -250,6 +250,9 @@
     keepAwake(c.opts.mode === "online" && settings.awake);
     if (c.opts.mode === "solo") S.set("resume", c.s.pending === "over" ? null : { kind: "solo" });
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
+    ui.fxSeen = c.s ? c.s.history.length : 0;
+    ui.turnChimed = null;
+    clearMoment();
     show("game");
     ensureMaps();
     if (mini) { mini.svg.remove(); mini = null; }
@@ -274,6 +277,7 @@
 
   function onEvent(ev) {
     var s = ctl.s;
+    var big = feedback();
     if (ev && ev.t === "x" && ctl.view !== "x") {
       if (ev.rev != null) tip("reveal");
       if (ev.tk === "black") tip("black-seen");
@@ -290,8 +294,62 @@
     }
     if (s.history.some(function (h) { return h.k === "skip"; })) tip("stuck");
     if (s.pending === "over" && ctl.opts.mode === "solo") S.set("resume", null);
-    if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(function () { if (!ui.replay) showEnd(); }, 500); return; }
+    if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(function () { if (!ui.replay) showEnd(); }, big ? 1900 : 500); return; }
     render();
+  }
+
+  // ---------- feedback: sound, haptics, map effects, the end moment ----------
+  // Works from the game history, so solo and online games behave alike. A big jump (rejoining,
+  // a resync) plays nothing but the ending. Returns true when the end moment is showing.
+  function feedback() {
+    var h = ctl.s.history, from = ui.fxSeen == null ? h.length : Math.min(ui.fxSeen, h.length);
+    ui.fxSeen = h.length;
+    if (ui.replay || h.length === from) return false;
+    var fresh = h.slice(from), rev = null, moved = false, end = null;
+    fresh.forEach(function (e) {
+      if (e.k === "x" && e.rev != null) rev = e.rev;
+      if (e.k === "x" || e.k === "d") moved = true;
+      if (e.k === "end") end = e;
+    });
+    if (end) return moment();
+    if (fresh.length > 6) return false;
+    if (rev != null) {
+      FY.SFX.play("reveal");
+      FY.SFX.buzz([30, 50, 30]);
+      if (mv) mv.pulse(rev, "#e0b341");
+    } else if (moved) FY.SFX.play("move");
+    return false;
+  }
+  // "Caught at 67!" with the catching detective's badge, or "Moriarty escaped!", over a flash.
+  function moment() {
+    var s = ctl.s, w = outcome();
+    if (ctl.verdict || !w.winner) return false;
+    var m = /^Detective (\d+) caught/.exec(s.reason || ""), i = m ? m[1] - 1 : -1, badge = "", big, cls = "";
+    if (w.winner === "det") {
+      big = i >= 0 && s.xEnd ? "Caught at " + s.xEnd + "!" : XN() + " is trapped!";
+      if (i >= 0) badge = '<span class="av" style="background:' + detCol(i) + '">' + dotInner(i) + "</span>";
+      FY.SFX.play("caught");
+    } else {
+      big = XN() + " escaped!";
+      cls = "x";
+      badge = '<span class="av" style="background:#111;color:#e0b341">X</span>';
+      FY.SFX.play("escape");
+    }
+    FY.SFX.buzz([80, 60, 160]);
+    clearMoment();
+    var d = document.createElement("div");
+    d.id = "moment";
+    d.className = cls;
+    d.setAttribute("role", "status");
+    d.innerHTML = '<div class="flash"></div><div class="card">' + badge + '<div class="big">' + esc(big) + '</div><div class="sub">' + esc(w.reason) + "</div></div>";
+    document.body.appendChild(d);
+    ui.momentT = setTimeout(clearMoment, 1900);
+    return true;
+  }
+  function clearMoment() {
+    clearTimeout(ui.momentT);
+    var d = document.getElementById("moment");
+    if (d) d.remove();
   }
 
   // ---------- derived view data ----------
@@ -360,11 +418,13 @@
     renderMap();
     if (ui.tab === "play" || wide()) renderPlay();
     if (ui.tab === "log") renderLog();
-    var key = (myTurn() || "-") + ctl.s.events.length;
-    if (myTurn() && key !== ui.lastTurnKey) {
+    var mine = myTurn(), key = (mine || "-") + ctl.s.events.length;
+    if (mine && key !== ui.lastTurnKey) {
       ui.lastTurnKey = key;
-      var active = !navigator.userActivation || navigator.userActivation.hasBeenActive; // browsers refuse to buzz before a first tap
-      if (settings.vibrate && navigator.vibrate && active) try { navigator.vibrate(25); } catch (e) {}
+      // Chime and buzz once per round when the turn passes to you, not after each of your own
+      // pieces moves (or each half of a double move).
+      var round = ctl.s.turn + mine;
+      if (round !== ui.turnChimed) { ui.turnChimed = round; FY.SFX.buzz(25); FY.SFX.play("turn"); }
       focusMine(false);
     }
   }
@@ -866,12 +926,14 @@
       '<label class="field"><span>Theme</span><div class="seg" id="oTheme"></div></label>' +
       '<label class="switch"><input type="checkbox" id="oTips"' + (settings.tips ? " checked" : "") + "><span>Learning tips</span></label>" +
       '<label class="switch"><input type="checkbox" id="oTactical"' + (settings.tactical ? " checked" : "") + "><span>Tactical hints (solo, or when the game master allows them)</span></label>" +
-      '<label class="switch"><input type="checkbox" id="oVibrate"' + (settings.vibrate ? " checked" : "") + "><span>Vibrate when it's my turn</span></label>" +
+      '<label class="switch"><input type="checkbox" id="oSound"' + (settings.sound ? " checked" : "") + "><span>Sound effects</span></label>" +
+      '<label class="switch"><input type="checkbox" id="oVibrate"' + (settings.vibrate ? " checked" : "") + "><span>Vibrate (my turn, sightings and the end)</span></label>" +
       '<label class="switch"><input type="checkbox" id="oAwake"' + (settings.awake ? " checked" : "") + "><span>Keep the screen on during online games</span></label>" +
       '<div class="row"><button class="btn grow" id="oResetTips">Show all tips again</button><button class="btn pri grow" data-act="close">Done</button></div>', function (card) {
       seg(card.querySelector("#oTheme"), ["auto", "light", "dark"], settings.theme, ["Auto", "Light", "Dark"], function (v) { settings = S.saveSetting("theme", v); applyTheme(); });
       card.querySelector("#oTips").onchange = function () { settings = S.saveSetting("tips", this.checked); render(); };
       card.querySelector("#oTactical").onchange = function () { settings = S.saveSetting("tactical", this.checked); render(); };
+      card.querySelector("#oSound").onchange = function () { settings = S.saveSetting("sound", this.checked); if (this.checked) FY.SFX.play("turn"); };
       card.querySelector("#oVibrate").onchange = function () { settings = S.saveSetting("vibrate", this.checked); };
       card.querySelector("#oAwake").onchange = function () { settings = S.saveSetting("awake", this.checked); keepAwake(this.checked && ctl && ctl.opts.mode === "online"); };
       card.querySelector("#oResetTips").onclick = function () { S.resetTips(); this.textContent = "Tips will show again"; };

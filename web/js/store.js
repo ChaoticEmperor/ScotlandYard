@@ -29,6 +29,7 @@
     level: "normal",
     detectives: FY.CONFIG.rules.detectivePawns,
     vibrate: true,
+    sound: true,
     awake: true, // keep the screen on during online games
     name: "",
     alias: "",

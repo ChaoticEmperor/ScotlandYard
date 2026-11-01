@@ -37,3 +37,17 @@
    map's centre, which made the ring swing across the map.) */
 @media (prefers-reduced-motion: no-preference) { .fy-map .tokhalo { animation: fy-march 1.2s linear infinite; } }
 @keyframes fy-march { to { stroke-dashoffset: -18; } }
+
+/* Piece entrance, landing bounce and the Mr. X sighting rings. Scales run around the piece's
+   own centre (its inner group's origin). */
+.fy-map .tokin, .fy-map .fxring { transform-box: view-box; transform-origin: 0 0; }
+.fy-map .fxring { fill: none; stroke-width: 4; opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .fy-map .tokin.pop { animation: fy-pop .45s cubic-bezier(.34, 1.56, .64, 1); }
+  .fy-map .tokin.land { animation: fy-land .32s ease-out; }
+  .fy-map .fxring { animation: fy-ring 1.3s ease-out forwards; }
+}
+@media (prefers-reduced-motion: reduce) { .fy-map .fxring { opacity: .9; } }
+@keyframes fy-pop { 0% { transform: scale(.2); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes fy-land { 0% { transform: scale(1); } 40% { transform: scale(1.16, .86); } 100% { transform: scale(1); } }
+@keyframes fy-ring { 0% { transform: scale(.6); opacity: .95; } 100% { transform: scale(3.2); opacity: 0; } }
