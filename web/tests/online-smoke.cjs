@@ -184,6 +184,9 @@ function serve() {
     await h.click('[data-role="det"][data-pid="' + ids[1] + '"]');
     const sees = await h.isChecked("[data-net=gmsees]");
     if (!sees) errors.push("gm: 'game master can watch Mr. X' should default on");
+    // The detective player shares all five pieces, so the game is still on when the game master
+    // removes them (computer detectives would usually catch the test's Mr. X first).
+    await h.click('[data-extra="share"]');
     await h.click("[data-net=start]");
     for (const p of [h, a, b]) await p.waitForSelector("#game:not(.hidden)", { timeout: 15000 });
     // Play a few moves, then compare what the game master sees with Mr. X's real position.
