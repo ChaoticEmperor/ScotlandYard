@@ -171,10 +171,12 @@
     el.innerHTML = values.map(function (v, k) {
       return '<button type="button" role="radio" aria-checked="' + (v === current) + '" data-v="' + v + '">' + (labels ? labels[k] : v) + "</button>";
     }).join("");
+    FY.FX.segs(el.parentNode);
     el.onclick = function (e) {
       var b = e.target.closest("button");
       if (!b) return;
       el.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-checked", x === b); });
+      FY.FX.segs(el.parentNode);
       onPick(b.getAttribute("data-v"));
     };
   }
@@ -252,6 +254,9 @@
     ui.sel = -1; ui.armDouble = false; ui.filter = "all"; ui.replay = null; ui.lastTurnKey = ""; ui.endShown = false;
     ui.fxSeen = c.s ? c.s.history.length : 0;
     ui.turnChimed = null;
+    ui.routeDrawn = false;
+    FY.FX.reset();
+    if (mv) mv.clearRoute();
     ui.moveKey = null;
     ui.statusH = null;
     ui.movesAt = 0;
@@ -298,6 +303,7 @@
     }
     if (s.history.some(function (h) { return h.k === "skip"; })) tip("stuck");
     if (s.pending === "over" && ctl.opts.mode === "solo") S.set("resume", null);
+    drawXRoute();
     if (s.pending === "over" && !ui.endShown) { ui.endShown = true; render(); setTimeout(function () { if (!ui.replay) showEnd(); }, big ? 1900 : 500); return; }
     render();
   }
@@ -340,6 +346,8 @@
       FY.SFX.play("escape");
     }
     FY.SFX.buzz([80, 60, 160]);
+    FY.FX.celebrate(w.winner === "x" ? ["#e0b341", "#111111", "#f5d77a", "#5c4a12"] : ctl.s.dets.map(function (d, k) { return detCol(k); }).concat(["#ffffff"]));
+    drawXRoute();
     clearMoment();
     var d = document.createElement("div");
     d.id = "moment";
@@ -349,6 +357,14 @@
     document.body.appendChild(d);
     ui.momentT = setTimeout(clearMoment, 1900);
     return true;
+  }
+  // Once Mr. X's route is known at the end (in verified games it arrives a moment later), it
+  // draws itself across the map.
+  function drawXRoute() {
+    var r = ctl && ctl.s.pending === "over" && ctl.route && ctl.route();
+    if (!mv || ui.routeDrawn || !r || r.length < 2) return;
+    ui.routeDrawn = true;
+    mv.drawRoute(r);
   }
   function clearMoment() {
     clearTimeout(ui.momentT);
@@ -481,6 +497,7 @@
         '<span class="p">' + (pos || (e && e.dbl ? "2×" : "")) + "</span></div>";
     }
     $("#travelIn").innerHTML = h;
+    FY.FX.travel($("#travelIn"));
     var cc = $("#travelIn [data-cur]"), w = $("#travel");
     if (cc) w.scrollLeft = cc.offsetLeft - w.clientWidth / 2 + 19;
   }
@@ -567,6 +584,7 @@
     if (ui.statusH != null && st.h !== ui.statusH) ui.statusAt = now;
     ui.moveKey = moveKey;
     ui.statusH = st.h;
+    FY.FX.counters(root);
     var mvs = root.querySelector(".moves"), stc = root.querySelector(".status");
     if (mvs && now - (ui.movesAt || 0) < 500) { mvs.classList.add("fresh"); mvs.style.setProperty("--el", ui.movesAt - now + "ms"); }
     if (stc && now - (ui.statusAt || 0) < 400) { stc.classList.add("bump"); stc.style.animationDelay = ui.statusAt - now + "ms"; }
@@ -591,8 +609,8 @@
 
   function xPanel(who) {
     var t = ctl.s.xT, h = '<div class="xbox"><div class="sect">' + esc(xLabel()) + '</div><div class="chips">';
-    ["taxi", "bus", "underground", "black"].forEach(function (k) { h += '<span class="chip">' + tkDot(k) + TK[k].n + " " + t[k] + "</span>"; });
-    h += '<span class="chip">' + tkDot("double", "2") + "Double " + t.double + "</span></div>";
+    ["taxi", "bus", "underground", "black"].forEach(function (k) { h += '<span class="chip">' + tkDot(k) + TK[k].n + ' <span class="ct" data-ct="x' + k + '">' + t[k] + "</span></span>"; });
+    h += '<span class="chip">' + tkDot("double", "2") + 'Double <span class="ct" data-ct="xdouble">' + t.double + "</span></span></div>";
     if (who === "x" && ctl.s.xStep === 0) {
       var can = ctl.canDouble();
       if (!can) ui.armDouble = false;
@@ -633,7 +651,7 @@
       h += '<button class="piece' + (i === ui.sel && can ? " sel" : "") + (moved ? " done" : "") + '" data-det="' + i + '"' + (can ? "" : " disabled") + ">" +
         '<span class="top"><span class="pdot" style="background:' + detCol(i) + '">' + dotInner(i) + "</span>" + esc(detName(i)) + " · " + d.pos +
         (moved ? " ✓" : "") + "</span>" + (owner ? '<span class="own">' + esc(owner) + "</span>" : "") +
-        '<span class="tks"><span>' + tkDot("taxi") + " " + d.t.taxi + "</span><span>" + tkDot("bus") + " " + d.t.bus + "</span><span>" + tkDot("underground") + " " + d.t.underground + "</span></span></button>";
+        '<span class="tks">' + ["taxi", "bus", "underground"].map(function (k) { return "<span>" + tkDot(k) + ' <span class="ct" data-ct="d' + i + k + '">' + d.t[k] + "</span></span>"; }).join("") + "</span></button>";
     });
     return h + "</div>";
   }
@@ -694,6 +712,7 @@
   // ---------- map taps ----------
   function onTap(n) {
     if (!n || !ctl || ui.replay) return;
+    if (mv) mv.ripple(n);
     var who = myTurn();
     if (who === "det") {
       var mine = ctl.myTurnDets();
@@ -1031,6 +1050,13 @@
     $("#sStart").onclick = startSolo;
     $("#gMenu").onclick = gameMenu;
     $("#gHelp").onclick = showHelp;
+    // Pressing a move card rings its destination on the map and the minimap.
+    $("#vPlay").addEventListener("pointerdown", function (e) {
+      var c = e.target.closest(".mv"), go = c && c.querySelector("[data-go]"), n = go && +go.getAttribute("data-go");
+      if (!n) return;
+      if (mv) mv.ripple(n, "#e0b341");
+      if (mini) mini.ripple(n, "#e0b341");
+    }, { passive: true });
     $("#tabs").onclick = function (e) { var b = e.target.closest("[data-tab]"); if (b) setTab(b.getAttribute("data-tab")); };
     refreshMenu();
     if (!S.works()) toast("Games won't be saved", "This browser isn't keeping data (a private window?), so a refresh will lose your game.");

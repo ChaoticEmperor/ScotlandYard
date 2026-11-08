@@ -269,7 +269,8 @@ table.stats th:first-child, table.stats td:first-child { text-align: left; }
   .pl.new { animation: fy-card .32s cubic-bezier(.2, .9, .3, 1.1) both; }
   .qr svg { animation: fy-fade .3s ease-out; }
   .btn, .role, button.chip, .mv .tkb button, .mv .see, #tabs button, .ib, .seg button { transition: transform .1s ease, background-color .15s, border-color .15s, box-shadow .15s; }
-  .btn:active, .role:active, button.chip:active, .mv .tkb button:active, .mv .see:active, .seg button:active, .ib:active { transform: scale(.96); }
+  html:not(.has-motion) .btn:active, html:not(.has-motion) .role:active, html:not(.has-motion) button.chip:active, html:not(.has-motion) .mv .tkb button:active,
+  html:not(.has-motion) .mv .see:active, html:not(.has-motion) .seg button:active, html:not(.has-motion) .ib:active { transform: scale(.96); }
 }
 @keyframes fy-screen { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes fy-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -291,3 +292,17 @@ table.stats th:first-child, table.stats td:first-child { text-align: left; }
 .scanframe { position: absolute; inset: 16%; border-radius: 12px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); border: 3px solid rgba(255, 255, 255, .9); }
 @media (prefers-reduced-motion: no-preference) { .scanframe { animation: fy-scan 1.6s ease-in-out infinite; } }
 @keyframes fy-scan { 50% { transform: scale(.94); border-color: var(--brass); } }
+
+/* Interaction effects driven by js/fx.js (Motion) */
+.ct { display: inline-block; font-variant-numeric: tabular-nums; min-width: 1.1em; }
+.ct.down { animation: fy-ct-down .6s ease-out; }
+.ct.up { animation: fy-ct-up .6s ease-out; }
+@keyframes fy-ct-down { 0%, 40% { color: var(--bad); } 100% { color: inherit; } }
+@keyframes fy-ct-up { 0%, 40% { color: var(--good); } 100% { color: inherit; } }
+.lc.glow { animation: fy-glow 1.6s ease-out; }
+@keyframes fy-glow { 0% { box-shadow: 0 0 0 0 rgba(224, 179, 65, .9); } 40% { box-shadow: 0 0 0 6px rgba(224, 179, 65, .5); } 100% { box-shadow: 0 0 0 0 rgba(224, 179, 65, 0); } }
+.seg { position: relative; }
+.seg .segpill { position: absolute; z-index: 0; border-radius: 8px; background: var(--ink); pointer-events: none; }
+.seg.sliding button { position: relative; z-index: 1; }
+.seg.sliding button[aria-checked="true"] { background: transparent; border-color: transparent; }
+.lc .tk { backface-visibility: hidden; }
