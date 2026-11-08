@@ -3,10 +3,12 @@
    Online games still need internet for the PeerJS server.
    VERSION and FILES are written by tools/package.py; a new deploy brings a new VERSION, which
    replaces the old cache. */
-var VERSION = "fy-61935d85b359";
-var FILES = /*FILES*/["./", "assets/icon-192.png", "assets/icon-512.png", "assets/icon.svg", "assets/map.jpg", "css/app.css", "css/map.css", "data/board.js", "index.html", "js/ai.js", "js/board.js", "js/config.js", "js/game.js", "js/mapview.js", "js/net.js", "js/rules.js", "js/scene.js", "js/sfx.js", "js/store.js", "js/terrain.js", "js/ui.js", "manifest.webmanifest"]/*END*/;
+var VERSION = "fy-9eb6572c0ad9";
+var FILES = /*FILES*/["./", "assets/icon-192.png", "assets/icon-512.png", "assets/icon.svg", "assets/map.jpg", "css/app.css", "css/map.css", "data/board.js", "index.html", "js/ai.js", "js/board.js", "js/config.js", "js/fx.js", "js/game.js", "js/mapview.js", "js/net.js", "js/rules.js", "js/scene.js", "js/sfx.js", "js/store.js", "js/terrain.js", "js/ui.js", "manifest.webmanifest"]/*END*/;
 var CDN = [
   "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",
+  "https://cdn.jsdelivr.net/npm/motion@12.23.12/dist/motion.js",
+  "https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.js",
   "https://cdn.jsdelivr.net/npm/@fontsource/oswald@5.2.5/500.css",
   "https://cdn.jsdelivr.net/npm/@fontsource/oswald@5.2.5/700.css"
 ];

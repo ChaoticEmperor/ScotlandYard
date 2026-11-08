@@ -9,6 +9,7 @@
   var ROAD = { w: 11, fill: "#fbf6e6", edge: "rgba(110,80,25,.55)" };
   var MAX_SCALE = 2.6;
 
+  var REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)");
   function el(tag, attrs, parent) {
     var n = document.createElementNS(NS, tag);
     for (var k in attrs) n.setAttribute(k, attrs[k]);
@@ -289,7 +290,7 @@
       if (!t.n) return;
       keep[t.id] = 1;
       var p = self.b.pos[t.n], key = JSON.stringify([t.label, t.photo, t.color, t.ring, t.text, t.ghost, t.halo, t.tag]);
-      var g = self.toks[t.id], fresh = !g, moved = g && g._n !== t.n;
+      var g = self.toks[t.id], fresh = !g, moved = g && g._n !== t.n, prevN = g && g._n;
       if (!g) { g = self.toks[t.id] = el("g", { "class": "tok" }, self.tokLayer); g.setAttribute("transform", "translate(" + p.x + " " + p.y + ")"); }
       g._n = t.n;
       if (g._key !== key) {
@@ -326,9 +327,19 @@
         }
         g = outer;
       }
-      // A piece that moved bounces as it lands (after its .35 s glide).
-      if (moved && g._in) self.land(g._in);
-      g.style.transform = "translate(" + p.x + "px, " + p.y + "px)";
+      // A piece that moved follows the line it took (or glides straight, e.g. a double move),
+      // then bounces as it lands.
+      var path = moved && !REDUCE.matches && g.animate && self.pathPoints(prevN, t.n, 14);
+      if (g._run && moved) { g._run.cancel(); g._run = null; } // a redraw mid-move lets it finish
+      if (path) {
+        g.style.transition = "none";
+        g.style.transform = "translate(" + p.x + "px, " + p.y + "px)";
+        var run = g._run = g.animate(path.map(function (q) { return { transform: "translate(" + q.x + "px, " + q.y + "px)" }; }), { duration: 620, easing: "cubic-bezier(.45, .05, .3, 1)" });
+        run.onfinish = function () { g._run = null; g.style.transition = ""; if (g._in) self.land(g._in, 0); };
+      } else {
+        if (moved && g._in) self.land(g._in);
+        g.style.transform = "translate(" + p.x + "px, " + p.y + "px)";
+      }
       g.removeAttribute("transform");
       self.tokLayer.appendChild(g); // keep drawing order as given
     });
@@ -337,12 +348,61 @@
     });
   };
 
-  MapView.prototype.land = function (inner) {
+  MapView.prototype.land = function (inner, delay) {
     setTimeout(function () {
       inner.classList.remove("land", "pop");
       void inner.getBoundingClientRect(); // restart the animation
       inner.classList.add("land");
-    }, 330);
+    }, delay == null ? 330 : delay);
+  };
+  // Points along the drawn line between two neighbouring stations, from a to b; null when no
+  // line joins them (a double move, a black ticket over two hops).
+  MapView.prototype.pathPoints = function (a, b, n) {
+    var pa = this.b.pos[a], pb = this.b.pos[b];
+    if (!pa || !pb) return null;
+    var geom = this.s.routes.concat(this.s.ferries).filter(function (g) { return (g.e.a === a && g.e.b === b) || (g.e.a === b && g.e.b === a); })[0];
+    if (!geom) return null;
+    var tmp = el("path", { d: geom.d, fill: "none", stroke: "none" }, this.svg), len = tmp.getTotalLength(), pts = [];
+    for (var i = 0; i <= n; i++) { var q = tmp.getPointAtLength(len * i / n); pts.push({ x: q.x, y: q.y }); }
+    tmp.remove();
+    var d0 = Math.hypot(pts[0].x - pa.x, pts[0].y - pa.y), d1 = Math.hypot(pts[n].x - pa.x, pts[n].y - pa.y);
+    if (d1 < d0) pts.reverse();
+    pts[0] = { x: pa.x, y: pa.y };
+    pts[n] = { x: pb.x, y: pb.y };
+    return pts;
+  };
+  // A single quick ring where the player tapped or is about to move.
+  MapView.prototype.ripple = function (n, color) {
+    var p = this.b.pos[n];
+    if (!p || REDUCE.matches) return;
+    var g = el("g", { transform: "translate(" + p.x + " " + p.y + ")", "class": "fx" }, this.tokLayer);
+    el("circle", { r: 14, "class": "fxripple", stroke: color || "#fff" }, g);
+    setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 700);
+  };
+  // Mr. X's whole route, drawn along the lines he took, under the pieces. Stays until cleared.
+  MapView.prototype.drawRoute = function (stations) {
+    this.clearRoute();
+    var pts = [], self = this;
+    for (var i = 1; i < stations.length; i++) {
+      var seg = this.pathPoints(stations[i - 1], stations[i], 10) || [this.b.pos[stations[i - 1]], this.b.pos[stations[i]]].filter(Boolean);
+      pts = pts.concat(i > 1 ? seg.slice(1) : seg);
+    }
+    if (pts.length < 2) return;
+    var layer = this.routeLayer = el("g", { "class": "xroute" });
+    this.tokLayer.parentNode.insertBefore(layer, this.tokLayer);
+    var d = "M" + pts.map(function (q) { return q.x.toFixed(1) + " " + q.y.toFixed(1); }).join(" L");
+    var under = el("path", { d: d, "class": "xroute-under" }, layer), line = el("path", { d: d, "class": "xroute-line" }, layer);
+    stations.forEach(function (n, k) { var q = self.b.pos[n]; if (q) el("circle", { cx: q.x, cy: q.y, r: k === 0 || k === stations.length - 1 ? 7 : 4.5, "class": "xroute-dot" }, layer); });
+    if (REDUCE.matches || !line.animate) return;
+    var len = line.getTotalLength(), ms = Math.min(4000, 900 + stations.length * 110);
+    [under, line].forEach(function (pth) {
+      pth.style.strokeDasharray = len + " " + len;
+      pth.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: ms, easing: "ease-in-out", fill: "forwards" });
+    });
+  };
+  MapView.prototype.clearRoute = function () {
+    if (this.routeLayer && this.routeLayer.parentNode) this.routeLayer.parentNode.removeChild(this.routeLayer);
+    this.routeLayer = null;
   };
   // Expanding rings on a station, for a Mr. X sighting.
   MapView.prototype.pulse = function (n, color) {

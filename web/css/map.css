@@ -51,3 +51,12 @@
 @keyframes fy-pop { 0% { transform: scale(.2); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes fy-land { 0% { transform: scale(1); } 40% { transform: scale(1.16, .86); } 100% { transform: scale(1); } }
 @keyframes fy-ring { 0% { transform: scale(.6); opacity: .95; } 100% { transform: scale(3.2); opacity: 0; } }
+
+/* Tap ripple and Mr. X's route at the end of the game */
+.fy-map .fxripple { fill: none; stroke-width: 3; transform-box: view-box; transform-origin: 0 0; opacity: 0; }
+@media (prefers-reduced-motion: no-preference) { .fy-map .fxripple { animation: fy-ripple .6s ease-out; } }
+@keyframes fy-ripple { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(2.2); opacity: 0; } }
+.fy-map .xroute { pointer-events: none; }
+.fy-map .xroute-under { fill: none; stroke: rgba(17, 17, 17, .55); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.fy-map .xroute-line { fill: none; stroke: #e0b341; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.fy-map .xroute-dot { fill: #111; stroke: #e0b341; stroke-width: 2.5; }

@@ -44,6 +44,7 @@
       // only shown as away after this long (any message brings them straight back).
       awayAfterMs: 30000,
       reconnectGiveUpMs: 120000,
+      resumeRetryMs: 90000, // a reloaded game master keeps trying to reopen the game this long
       autoResendMs: 4000, // Mr. X's device re-sends an automatic step (capture check answer…) only after this
       defaultReferee: "verified", // "verified" or "trusted"
       // Player photos are shrunk on the device to a small square JPEG before they are sent.

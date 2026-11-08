@@ -78,15 +78,19 @@
       return conn;
     },
     listen: function (id, onConn, onReady, onError) {
-      var self = this, peer = new window.Peer(id, this.options()), closed = false;
-      peer.on("open", function () { onReady(); });
+      var self = this, peer = new window.Peer(id, this.options()), closed = false, ready = false;
+      peer.on("open", function () { ready = true; onReady(); });
       peer.on("connection", function (dc) {
         var h = {}, conn = self.wrap(dc, h);
         onConn(conn, h);
         if (dc.open) { conn.open = true; h.open && h.open(); }
       });
       peer.on("disconnected", function () { if (!closed) setTimeout(function () { try { peer.reconnect(); } catch (e) {} }, 1500); });
-      peer.on("error", function (e) { onError(e.type || "error"); });
+      // A failed start (e.g. the code still held from before a refresh) frees its peer at once.
+      peer.on("error", function (e) { if (!ready) { closed = true; try { peer.destroy(); } catch (x) {} } onError(e.type || "error"); });
+      // Closing or reloading the page releases the code on the matchmaking server straight away,
+      // so the reloaded page can take it back (otherwise the server holds it for up to a minute).
+      window.addEventListener("pagehide", function (e) { if (!e.persisted && !closed) { closed = true; try { peer.destroy(); } catch (x) {} } });
       return { close: function () { closed = true; try { peer.destroy(); } catch (e) {} } };
     },
     connect: function (id, h) {
@@ -1011,16 +1015,21 @@
       hostNow(saved, code, name);
     });
   }
-  function hostNow(saved, code, name) {
-    $("#onlineInner").innerHTML = '<p class="note">Opening game ' + code + "…</p>";
+  // After a refresh the matchmaking server may still hold the code for a while, so resuming
+  // keeps trying (players keep retrying for 2 minutes too) instead of giving up at once.
+  function hostNow(saved, code, name, since) {
+    since = since || Date.now();
+    $("#onlineInner").innerHTML = '<p class="note">' + (Date.now() - since > 1000 ? "Reopening game " + code + "… the matchmaking server is still releasing it from before the refresh. Players will reconnect on their own." : "Opening game " + code + "…") + "</p>";
     hostSession(code, saved).then(function (sess) {
       current = sess;
       S.set("resume", { kind: "host", code: code });
       if (name) { sess.players.host.name = name; sess.players.host.alias = S.settings().alias || ""; }
       if (setPhoto(sess.players.host, S.settings().photo)) broadcastPhotos(sess);
+      persistHost(sess); // saved at once, so even a refresh in an empty lobby comes back to it
       if (sess.state) onSessionChange(sess); else renderLobby();
     }, function (err) {
       if (err === "unavailable-id" && !saved) return startHosting(null);
+      if (saved && Date.now() - since < C.net.resumeRetryMs) return setTimeout(function () { hostNow(saved, code, name, since); }, 3000);
       openHome(err === "unavailable-id" ? "That code is still held by the matchmaking server; try Resume again in a minute." : "Couldn't reach the matchmaking server. Check your connection and try again.");
     });
   }
@@ -1131,6 +1140,7 @@
     sess.lobbySeen = {};
     Object.keys(info.players).forEach(function (id) { sess.lobbySeen[id] = seen[id] || (first ? 1 : Date.now()); });
     drawQr(sess.code);
+    FY.FX.segs($("#onlineInner"));
   }
 
   // ------------------------------------------------------------------ scan to join
